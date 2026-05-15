@@ -1,0 +1,280 @@
+.patient-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: -10px;
+  background-color: white;
+  padding: 12px 24px;
+  border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+}
+
+.room-info {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.patient-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 0 var(--border-radius-md) var(--border-radius-md) var(--border-radius-md);
+  padding: 32px;
+}
+
+.patient-name-block h1 {
+  font-size: 2.2rem;
+  line-height: 1.1;
+  color: var(--text-dark);
+  margin-bottom: 12px;
+}
+
+.patient-demographics {
+  display: flex;
+  gap: 24px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 24px;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 24px;
+  color: var(--text-dark);
+}
+
+.subsection-title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.profile-section {
+  margin-bottom: 32px;
+}
+
+.profile-item {
+  margin-bottom: 16px;
+}
+
+.profile-label {
+  font-size: 0.85rem;
+  color: var(--text-dark);
+  font-weight: 600;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.profile-item p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.allergy-text {
+  color: var(--accent-red) !important;
+  font-weight: 600;
+}
+
+.med-list {
+  list-style-type: disc;
+  padding-left: 20px;
+  color: var(--text-dark);
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+.doctor-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  margin-top: 24px;
+}
+
+.doc-avatar {
+  width: 40px;
+  height: 40px;
+  background-color: #d1fae5;
+  border-radius: 50%;
+}
+
+.doc-role {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.doc-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.btn-outline {
+  margin-left: auto;
+  padding: 8px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.btn-outline:hover {
+  background-color: var(--bg-main);
+}
+
+.alert-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.link-text {
+  color: var(--accent-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.alert-events {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.alert-event {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--border-radius-md);
+  border-left: 4px solid transparent;
+}
+
+.alert-event.critical {
+  background-color: #fef2f2;
+  border-left-color: var(--accent-red);
+}
+.alert-event.critical .event-icon { color: var(--accent-red); }
+
+.alert-event.warning {
+  background-color: #fffbeb;
+  border-left-color: var(--accent-orange);
+}
+.alert-event.warning .event-icon { color: var(--accent-orange); }
+
+.alert-event.stable {
+  background-color: #f0fdf4;
+  border-left-color: #16a34a;
+}
+.alert-event.stable .event-icon { color: #16a34a; }
+
+.event-content h4 {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.event-content p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.event-time {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.vitals-dashboard {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+}
+
+.dark-card {
+  background-color: #18181b;
+  color: white;
+  border: none;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.chart-header h4 {
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  letter-spacing: 1px;
+}
+
+.chart-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.chart-value .unit {
+  font-size: 1rem;
+  color: #a1a1aa;
+  font-weight: 600;
+}
+
+.chart-container {
+  margin-top: -20px;
+}
+
+.vitals-side {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.vital-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.vital-card h4 {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  letter-spacing: 1px;
+  margin-bottom: 16px;
+}
+
+.vital-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.vital-value .unit {
+  font-size: 1rem;
+  color: var(--text-muted);
+}
+
+.dark-text { color: var(--text-dark); }
+.orange-text { color: var(--accent-orange); }

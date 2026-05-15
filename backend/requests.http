@@ -1,0 +1,102 @@
+### Patient Management Endpoints Testing
+
+### Create a new patient
+POST http://localhost:8080/api/v1/patients
+Content-Type: application/json
+
+{
+  "mrn": "MRN-001",
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "age": 45,
+  "gender": "M",
+  "status": "ADMITTED",
+  "diagnosis": "Hipertensión",
+  "roomNumber": "101",
+  "bedNumber": "A",
+  "notes": "Patient with chronic hypertension"
+}
+
+### Get all patients
+GET http://localhost:8080/api/v1/patients
+
+### Get patient by ID
+GET http://localhost:8080/api/v1/patients/1
+
+### Get patient by MRN
+GET http://localhost:8080/api/v1/patients/mrn/MRN-001
+
+### Get patients by status
+GET http://localhost:8080/api/v1/patients/status/ADMITTED
+
+### Get critical patients
+GET http://localhost:8080/api/v1/patients/critical
+
+### Update patient
+PUT http://localhost:8080/api/v1/patients/1
+Content-Type: application/json
+
+{
+  "mrn": "MRN-001",
+  "firstName": "Juan",
+  "lastName": "Pérez",
+  "age": 46,
+  "gender": "M",
+  "status": "STABLE",
+  "diagnosis": "Hypertension - Controlled",
+  "roomNumber": "102",
+  "bedNumber": "B",
+  "notes": "Patient showing improvement"
+}
+
+### Delete patient
+DELETE http://localhost:8080/api/v1/patients/1
+
+### Create critical patient
+POST http://localhost:8080/api/v1/patients
+Content-Type: application/json
+
+{
+  "mrn": "MRN-CRITICAL-001",
+  "firstName": "María",
+  "lastName": "García",
+  "age": 72,
+  "gender": "F",
+  "status": "CRITICAL",
+  "diagnosis": "Acute Myocardial Infarction",
+  "roomNumber": "ICU-02",
+  "bedNumber": "3",
+  "notes": "Requires continuous monitoring"
+}
+
+### Create stable patient
+POST http://localhost:8080/api/v1/patients
+Content-Type: application/json
+
+{
+  "mrn": "MRN-STABLE-001",
+  "firstName": "Carlos",
+  "lastName": "López",
+  "age": 35,
+  "gender": "M",
+  "status": "STABLE",
+  "diagnosis": "Post-operative care",
+  "roomNumber": "201",
+  "bedNumber": "C",
+  "notes": "Post-surgical recovery proceeding normally"
+}
+
+### Actuator - Health check
+GET http://localhost:8080/api/v1/actuator/health
+
+### Actuator - Application info
+GET http://localhost:8080/api/v1/actuator/info
+
+### Actuator - Metrics
+GET http://localhost:8080/api/v1/actuator/metrics
+
+### OpenAPI Documentation
+GET http://localhost:8080/api/v1/swagger-ui.html
+
+### OpenAPI JSON Schema
+GET http://localhost:8080/api/v1/openapi.json
