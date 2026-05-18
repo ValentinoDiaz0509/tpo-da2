@@ -28,33 +28,7 @@ import {
   clearPatientDetail,
 } from '../store/slices/patientDetailSlice';
 import { wsConnectDetail, wsDisconnect } from '../store/middleware/websocketMiddleware';
-
-const VitalCard = ({
-  label,
-  value,
-  unit,
-  color = 'text.primary',
-}: {
-  label: string;
-  value: string | number;
-  unit: string;
-  color?: string;
-}) => (
-  <Paper
-    elevation={0}
-    sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, textAlign: 'center' }}
-  >
-    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block' }}>
-      {label}
-    </Typography>
-    <Typography variant="h5" sx={{ fontWeight: 700, color, mt: 0.5 }}>
-      {value}{' '}
-      <Typography component="span" variant="caption" color="text.secondary">
-        {unit}
-      </Typography>
-    </Typography>
-  </Paper>
-);
+import VitalCard from '../components/VitalCard';
 
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
