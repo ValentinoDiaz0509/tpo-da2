@@ -4,6 +4,7 @@ import com.healthgrid.monitoring.dto.PatientDTO;
 import com.healthgrid.monitoring.model.PatientStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 import java.util.function.Consumer;
@@ -25,6 +26,7 @@ public class PatientEventConsumer {
      * @return Consumer that processes PatientDTO events
      */
     @Bean
+    @ConditionalOnProperty(name = "aws.sqs.enabled", havingValue = "true", matchIfMissing = true)
     public Consumer<PatientDTO> patientEventInput() {
         return patientEvent -> {
             try {
@@ -99,4 +101,3 @@ public class PatientEventConsumer {
     }
 
 }
-

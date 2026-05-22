@@ -1,6 +1,8 @@
 package com.healthgrid.monitoring.service;
 
 import com.healthgrid.monitoring.dto.RuleDTO;
+import com.healthgrid.monitoring.exception.ApplicationException;
+import com.healthgrid.monitoring.exception.ExceptionEnum;
 import com.healthgrid.monitoring.model.Rule;
 import com.healthgrid.monitoring.model.AlertSeverity;
 import com.healthgrid.monitoring.repository.RuleRepository;
@@ -59,7 +61,7 @@ public class RuleService {
     @Transactional(readOnly = true)
     public RuleDTO getRuleById(UUID id) {
         Rule rule = ruleRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Rule not found with ID: " + id));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.RULE_NOT_FOUND, id.toString()));
         return convertToDTO(rule);
     }
 
@@ -127,7 +129,7 @@ public class RuleService {
         log.info("Updating rule with ID: {}", id);
         
         Rule rule = ruleRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Rule not found with ID: " + id));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.RULE_NOT_FOUND, id.toString()));
 
         rule.setMetricName(ruleDTO.getMetricName());
         rule.setOperator(ruleDTO.getOperator());
@@ -150,7 +152,7 @@ public class RuleService {
      */
     public void enableRule(UUID id) {
         Rule rule = ruleRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Rule not found with ID: " + id));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.RULE_NOT_FOUND, id.toString()));
         rule.setEnabled(true);
         ruleRepository.save(rule);
         log.info("Rule enabled with ID: {}", id);
@@ -163,7 +165,7 @@ public class RuleService {
      */
     public void disableRule(UUID id) {
         Rule rule = ruleRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Rule not found with ID: " + id));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.RULE_NOT_FOUND, id.toString()));
         rule.setEnabled(false);
         ruleRepository.save(rule);
         log.info("Rule disabled with ID: {}", id);
@@ -176,7 +178,7 @@ public class RuleService {
      */
     public void deleteRule(UUID id) {
         if (!ruleRepository.existsById(id)) {
-            throw new RuntimeException("Rule not found with ID: " + id);
+            throw new ApplicationException(ExceptionEnum.RULE_NOT_FOUND, id.toString());
         }
         ruleRepository.deleteById(id);
         log.info("Rule deleted with ID: {}", id);

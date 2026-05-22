@@ -3,6 +3,7 @@ package com.healthgrid.monitoring.service;
 import com.healthgrid.monitoring.dto.TelemetryMessageDTO;
 import com.healthgrid.monitoring.dto.TelemetryMetricsDTO;
 import com.healthgrid.monitoring.model.Patient;
+import com.healthgrid.monitoring.consumer.TelemetryConsumer;
 import com.healthgrid.monitoring.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,7 +14,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Random;
-import java.util.function.Consumer;
 
 @Service
 @EnableScheduling
@@ -23,7 +23,7 @@ import java.util.function.Consumer;
 public class TelemetrySimulatorService {
 
     private final PatientRepository patientRepository;
-    private final Consumer<TelemetryMessageDTO> telemetryEventInput; // Use the same consumer logic
+    private final TelemetryConsumer telemetryConsumer;
 
     private final Random random = new Random();
 
@@ -66,7 +66,7 @@ public class TelemetrySimulatorService {
                 .build();
 
             // Directly call the consumer to process it, bypassing real SQS
-            telemetryEventInput.accept(msg);
+            telemetryConsumer.processTelemetryMessage(msg);
         }
     }
 

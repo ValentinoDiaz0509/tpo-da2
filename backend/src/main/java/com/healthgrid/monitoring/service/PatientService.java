@@ -1,6 +1,8 @@
 package com.healthgrid.monitoring.service;
 
 import com.healthgrid.monitoring.dto.PatientDTO;
+import com.healthgrid.monitoring.exception.ApplicationException;
+import com.healthgrid.monitoring.exception.ExceptionEnum;
 import com.healthgrid.monitoring.model.Patient;
 import com.healthgrid.monitoring.model.PatientStatus;
 import com.healthgrid.monitoring.repository.PatientRepository;
@@ -59,7 +61,7 @@ public class PatientService {
         Patient patient = patientRepository.findById(id)
             .orElseThrow(() -> {
                 log.error("Patient not found with ID: {}", id);
-                return new RuntimeException("Patient not found with ID: " + id);
+                return new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, id.toString());
             });
         return convertToDTO(patient);
     }
@@ -148,7 +150,7 @@ public class PatientService {
         log.info("Updating patient with ID: {}", id);
         
         Patient patient = patientRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + id));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, id.toString()));
 
         patient.setName(patientDTO.getName());
         patient.setRoom(patientDTO.getRoom());
@@ -170,7 +172,7 @@ public class PatientService {
         log.info("Deleting patient with ID: {}", id);
         
         if (!patientRepository.existsById(id)) {
-            throw new RuntimeException("Patient not found with ID: " + id);
+            throw new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, id.toString());
         }
         
         patientRepository.deleteById(id);

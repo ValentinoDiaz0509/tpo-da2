@@ -9,6 +9,7 @@ import com.healthgrid.monitoring.service.RuleEngineService;
 import com.healthgrid.monitoring.service.TelemetryReadingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
@@ -37,52 +38,55 @@ public class TelemetryConsumer {
      * Implementa IDEMPOTENCIA usando hash del payload.
      */
     @Bean
+    @ConditionalOnProperty(name = "aws.sqs.enabled", havingValue = "true", matchIfMissing = true)
     public Consumer<TelemetryMessageDTO> telemetryEventInput() {
+        return this::processTelemetryMessage;
+    }
+
+    public void processTelemetryMessage(TelemetryMessageDTO telemetryMessage) {
         // TODO(core): revisar nombre de binding, origen de eventos y esquema del mensaje cuando Core intermedie colas.
-        return telemetryMessage -> {
-            try {
-                log.info("Received telemetry message from sensor: {} for patient: {}",
-                    telemetryMessage.getSensorId(),
-                    telemetryMessage.getPatientId());
-                
-                // PASO 1: Generar fingerprint único del mensaje
-                String messageFingerprint = generateMessageFingerprint(telemetryMessage);
-                
-                // PASO 2: Verificar si ya procesamos este mensaje
-                if (isDuplicateMessage(messageFingerprint)) {
-                    log.warn("⚠️ Duplicate message detected (fingerprint: {}), skipping processing", 
-                        messageFingerprint);
-                    return; // Ignorar duplicado
-                }
-                
-                // PASO 3: Convertir a DTO y guardar lectura
-                TelemetryReadingDTO readingDTO = convertToReadingDTO(telemetryMessage);
-                TelemetryReadingDTO savedReadingDTO = telemetryReadingService.recordReading(
-                    telemetryMessage.getPatientId(),
-                    readingDTO
-                );
+        try {
+            log.info("Received telemetry message from sensor: {} for patient: {}",
+                telemetryMessage.getSensorId(),
+                telemetryMessage.getPatientId());
 
-                TelemetryReading savedReading = telemetryReadingRepository.findById(savedReadingDTO.getId())
-                    .orElseThrow(() -> new IllegalStateException("Saved telemetry reading not found"));
+            // PASO 1: Generar fingerprint único del mensaje
+            String messageFingerprint = generateMessageFingerprint(telemetryMessage);
 
-                log.info("✓ Telemetry reading saved with ID: {}", savedReading.getId());
-                
-                // PASO 4: Evaluar reglas y generar alertas (si es necesario)
-                List<Alert> generatedAlerts = ruleEngineService
-                    .evaluateReadingAndGenerateAlerts(savedReading);
-                
-                if (!generatedAlerts.isEmpty()) {
-                    log.warn("Generated {} alert(s) for patient: {}", 
-                        generatedAlerts.size(), 
-                        telemetryMessage.getPatientId());
-                }
-                
-            } catch (Exception e) {
-                log.error("Error processing telemetry message", e);
-                // TODO: Enviar a Dead-Letter Queue (DLQ) si es necesario
-                throw new RuntimeException("Telemetry processing failed", e);
+            // PASO 2: Verificar si ya procesamos este mensaje
+            if (isDuplicateMessage(messageFingerprint)) {
+                log.warn("⚠️ Duplicate message detected (fingerprint: {}), skipping processing",
+                    messageFingerprint);
+                return; // Ignorar duplicado
             }
-        };
+
+            // PASO 3: Convertir a DTO y guardar lectura
+            TelemetryReadingDTO readingDTO = convertToReadingDTO(telemetryMessage);
+            TelemetryReadingDTO savedReadingDTO = telemetryReadingService.recordReading(
+                telemetryMessage.getPatientId(),
+                readingDTO
+            );
+
+            TelemetryReading savedReading = telemetryReadingRepository.findById(savedReadingDTO.getId())
+                .orElseThrow(() -> new IllegalStateException("Saved telemetry reading not found"));
+
+            log.info("✓ Telemetry reading saved with ID: {}", savedReading.getId());
+
+            // PASO 4: Evaluar reglas y generar alertas (si es necesario)
+            List<Alert> generatedAlerts = ruleEngineService
+                .evaluateReadingAndGenerateAlerts(savedReading);
+
+            if (!generatedAlerts.isEmpty()) {
+                log.warn("Generated {} alert(s) for patient: {}",
+                    generatedAlerts.size(),
+                    telemetryMessage.getPatientId());
+            }
+
+        } catch (Exception e) {
+            log.error("Error processing telemetry message", e);
+            // TODO: Enviar a Dead-Letter Queue (DLQ) si es necesario
+            throw new RuntimeException("Telemetry processing failed", e);
+        }
     }
     
     /**

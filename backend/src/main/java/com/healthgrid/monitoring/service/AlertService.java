@@ -1,6 +1,8 @@
 package com.healthgrid.monitoring.service;
 
 import com.healthgrid.monitoring.dto.AlertDTO;
+import com.healthgrid.monitoring.exception.ApplicationException;
+import com.healthgrid.monitoring.exception.ExceptionEnum;
 import com.healthgrid.monitoring.model.Alert;
 import com.healthgrid.monitoring.model.AlertSeverity;
 import com.healthgrid.monitoring.model.Patient;
@@ -41,7 +43,7 @@ public class AlertService {
         log.info("Creating alert for patient ID: {}, Severity: {}", patientId, alertDTO.getSeverity());
         
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         Alert alert = Alert.builder()
             .patient(patient)
@@ -65,7 +67,7 @@ public class AlertService {
     @Transactional(readOnly = true)
     public AlertDTO getAlertById(UUID id) {
         Alert alert = alertRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Alert not found with ID: " + id));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.ALERT_NOT_FOUND, id.toString()));
         return convertToDTO(alert);
     }
 
@@ -104,7 +106,7 @@ public class AlertService {
     @Transactional(readOnly = true)
     public List<AlertDTO> getPatientAlerts(UUID patientId) {
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         return alertRepository.findByPatient(patient)
             .stream()
@@ -121,7 +123,7 @@ public class AlertService {
     @Transactional(readOnly = true)
     public List<AlertDTO> getPatientUnacknowledgedAlerts(UUID patientId) {
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         return alertRepository.findByPatientAndAcknowledgedFalse(patient)
             .stream()
@@ -151,7 +153,7 @@ public class AlertService {
      */
     public void acknowledgeAlert(UUID id, String acknowledgedBy) {
         Alert alert = alertRepository.findById(id)
-            .orElseThrow(() -> new RuntimeException("Alert not found with ID: " + id));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.ALERT_NOT_FOUND, id.toString()));
 
         alert.setAcknowledged(true);
         alert.setAcknowledgedBy(acknowledgedBy);

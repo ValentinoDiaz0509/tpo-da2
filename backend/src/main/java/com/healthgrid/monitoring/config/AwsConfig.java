@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
@@ -49,6 +50,7 @@ public class AwsConfig {
      * @return configured SqsClient instance
      */
     @Bean
+    @ConditionalOnProperty(name = "aws.sqs.enabled", havingValue = "true", matchIfMissing = true)
     public SqsClient sqsClient() {
         // TODO(core): reemplazar cliente/config directa por el mecanismo de publicacion/consumo estandar provisto por Core.
         AwsCredentialsIdentity identity = AwsCredentialsIdentity.create(awsAccessKey, awsSecretKey);

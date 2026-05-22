@@ -1,4 +1,6 @@
 spring:
+  profiles:
+    default: local
   application:
     name: patient-monitoring-service
   jpa:

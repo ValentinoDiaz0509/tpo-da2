@@ -26,6 +26,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,7 +36,7 @@ import java.util.regex.Pattern;
 public class EventPublisherService {
     
     // TODO(core): reemplazar publicacion directa a SQS por el adapter/event bus definido por Core.
-    private final SqsClient sqsClient;
+    private final Optional<SqsClient> sqsClient;
     private final ObjectMapper objectMapper;
     private final PatientRepository patientRepository;
     private final RestTemplate restTemplate;
@@ -51,6 +52,9 @@ public class EventPublisherService {
 
     @Value("${healthgrid.module6.webhook.token:mock-jwt-token-for-m6}")
     private String module6WebhookToken;
+
+    @Value("${healthgrid.module6.webhook.enabled:true}")
+    private boolean module6WebhookEnabled;
     
     /**
      * Publica un evento CRITICAL a Module 6 (Internación) usando REST (Webhook) y Core via SQS.
@@ -83,20 +87,29 @@ public class EventPublisherService {
             validateEventPayload(event);
             
             // PASO 5: Enviar a SQS con Message Group ID (para FIFO order)
-            SendMessageRequest request = SendMessageRequest.builder()
-                .queueUrl(admissionQueueUrl)
-                .messageBody(eventPayload)
-                .messageGroupId("admission-events") // FIFO ordering
-                .messageDeduplicationId(
-                    generateDeduplicationId(alert, rule)) // Evitar duplicados
-                .build();
-            
-            SendMessageResponse response = sqsClient.sendMessage(request);
-            
-            log.info("✓ CRITICAL ALERT EVENT PUBLISHED TO CORE VIA SQS - Patient: {}, MessageId: {}",
-                alert.getPatient().getId(), response.messageId());
+            if (sqsClient.isPresent()) {
+                SendMessageRequest request = SendMessageRequest.builder()
+                    .queueUrl(admissionQueueUrl)
+                    .messageBody(eventPayload)
+                    .messageGroupId("admission-events") // FIFO ordering
+                    .messageDeduplicationId(
+                        generateDeduplicationId(alert, rule)) // Evitar duplicados
+                    .build();
+
+                SendMessageResponse response = sqsClient.get().sendMessage(request);
+
+                log.info("✓ CRITICAL ALERT EVENT PUBLISHED TO CORE VIA SQS - Patient: {}, MessageId: {}",
+                    alert.getPatient().getId(), response.messageId());
+            } else {
+                log.info("Skipping SQS publish because aws.sqs.enabled=false");
+            }
 
             // PASO 6: Enviar Webhook REST a Módulo 6 (Internación)
+            if (!module6WebhookEnabled) {
+                log.info("Skipping Module 6 webhook because healthgrid.module6.webhook.enabled=false");
+                return;
+            }
+
             try {
                 Long pId = patient.getExternalId() != null ? Long.valueOf(patient.getExternalId()) : 0L;
                 
@@ -137,6 +150,11 @@ public class EventPublisherService {
      * Publica un evento de alerta resuelta a Module 6 (Internación).
      */
     public void publishAlertResolvedEvent(Alert alert, String motivoResolucion) {
+        if (!module6WebhookEnabled) {
+            log.info("Skipping resolved alert webhook because healthgrid.module6.webhook.enabled=false");
+            return;
+        }
+
         try {
             Patient patient = patientRepository.findById(alert.getPatient().getId())
                 .orElseThrow(() -> new RuntimeException("Patient not found"));
