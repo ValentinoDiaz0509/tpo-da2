@@ -3,13 +3,8 @@ package com.healthgrid.monitoring.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.time.LocalDateTime;
-import java.util.List;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -52,9 +47,12 @@ public class GlobalExceptionHandler {
     private ResponseEntity<ErrorResponse> buildResponse500(
             Exception exception,
             HttpServletRequest request) {
+        String message = exception.getCause() != null && exception.getCause().getMessage() != null
+                ? exception.getCause().getMessage()
+                : exception.getMessage();
         ErrorResponse response = new ErrorResponse (
-                exception.getCause().getMessage(),
-                exception.getMessage(),
+                ExceptionEnum.INTERNAL_SERVER_ERROR.getKey(),
+                message,
                 request.getRequestURI()
         );
 

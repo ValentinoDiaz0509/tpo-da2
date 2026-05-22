@@ -31,14 +31,15 @@ interface Props {
 const METRICS = [
   { value: 'heart_rate', label: 'Frecuencia Cardíaca' },
   { value: 'spo2', label: 'Saturación de O2' },
-  { value: 'respiratory_rate', label: 'Frecuencia Respiratoria' },
-  { value: 'systolic_bp', label: 'Presión Sistólica' },
+  { value: 'systolic_pressure', label: 'Presión Sistólica' },
+  { value: 'diastolic_pressure', label: 'Presión Diastólica' },
+  { value: 'temperature', label: 'Temperatura' },
 ];
 
 const OPERATORS = [
   { value: 'GREATER_THAN', label: 'Mayor que (>)' },
   { value: 'LESS_THAN', label: 'Menor que (<)' },
-  { value: 'EQUALS', label: 'Igual a (=)' },
+  { value: 'EQUAL', label: 'Igual a (=)' },
 ];
 
 const SEVERITIES = [
@@ -55,9 +56,8 @@ const RuleEngineModal = ({ onClose }: Props) => {
   const { rules, loading } = useAppSelector((s) => s.rules);
 
   const [form, setForm] = useState<CreateRulePayload & { durationSeconds: number }>({
-    name: '',
     description: '',
-    metricType: 'heart_rate',
+    metricName: 'heart_rate',
     operator: 'GREATER_THAN',
     threshold: 120,
     severity: 'CRITICAL',
@@ -85,12 +85,13 @@ const RuleEngineModal = ({ onClose }: Props) => {
     try {
       await dispatch(
         createRule({
-          name: form.description,
           description: form.description,
-          metricType: form.metricType,
+          metricName: form.metricName,
           operator: form.operator,
           threshold: parseFloat(String(form.threshold)),
+          durationSeconds: parseInt(String(form.durationSeconds), 10),
           severity: form.severity,
+          enabled: true,
         }),
       ).unwrap();
       setForm((prev) => ({ ...prev, description: '' }));
@@ -170,7 +171,7 @@ const RuleEngineModal = ({ onClose }: Props) => {
                     border: '1px solid',
                     borderColor: 'divider',
                     borderRadius: 2,
-                    opacity: rule.active ? 1 : 0.5,
+                    opacity: rule.enabled ? 1 : 0.5,
                     bgcolor: 'background.default',
                   }}
                 >
@@ -186,7 +187,7 @@ const RuleEngineModal = ({ onClose }: Props) => {
                       />
                     </Box>
                     <Typography variant="caption" color="text.secondary">
-                      Si <strong>{rule.metricType}</strong>{' '}
+                      Si <strong>{rule.metricName}</strong>{' '}
                       {operatorLabel(rule.operator)}{' '}
                       <strong>{rule.threshold}</strong>
                     </Typography>
@@ -194,9 +195,9 @@ const RuleEngineModal = ({ onClose }: Props) => {
                   <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
                     <IconButton
                       size="small"
-                      title={rule.active ? 'Desactivar' : 'Activar'}
-                      onClick={() => handleToggle(rule.id, rule.active)}
-                      sx={{ color: rule.active ? 'success.main' : 'text.disabled' }}
+                      title={rule.enabled ? 'Desactivar' : 'Activar'}
+                      onClick={() => handleToggle(rule.id, rule.enabled)}
+                      sx={{ color: rule.enabled ? 'success.main' : 'text.disabled' }}
                     >
                       <PowerSettingsNewIcon fontSize="small" />
                     </IconButton>
@@ -236,8 +237,8 @@ const RuleEngineModal = ({ onClose }: Props) => {
                 <TextField
                   label="Métrica Vital"
                   select
-                  value={form.metricType}
-                  onChange={handleChange('metricType')}
+                  value={form.metricName}
+                  onChange={handleChange('metricName')}
                   fullWidth
                 >
                   {METRICS.map((m) => (

@@ -160,7 +160,7 @@ const Header = ({ height }: Props) => {
                   headerAlerts.map((alert) => (
                     <Link
                       key={alert.id}
-                      to={`/paciente/${alert.patient.id}`}
+                      to={`/paciente/${alert.patientId}`}
                       style={{ textDecoration: 'none', color: 'inherit' }}
                       onClick={() => setShowNotifications(false)}
                     >
@@ -182,10 +182,10 @@ const Header = ({ height }: Props) => {
                             {alert.message || 'Alerta Crítica'}
                           </Typography>
                           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-                            Paciente ID: {alert.patient.id.substring(0, 8)}
+                            Paciente ID: {alert.patientId.substring(0, 8)}
                           </Typography>
                           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                            {new Date(alert.createdAt).toLocaleTimeString()}
+                            {new Date(alert.triggeredAt).toLocaleTimeString()}
                           </Typography>
                         </Box>
                       </Box>

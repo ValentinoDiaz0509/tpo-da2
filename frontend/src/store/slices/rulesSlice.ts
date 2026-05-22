@@ -3,22 +3,23 @@ import { apiFetch } from '../../services/api';
 
 export interface Rule {
   id: string;
-  name: string;
   description?: string;
-  metricType: string;
+  metricName: string;
   operator: string;
   threshold: number;
+  durationSeconds: number;
   severity: string;
-  active: boolean;
+  enabled: boolean;
 }
 
 export interface CreateRulePayload {
-  name: string;
   description?: string;
-  metricType: string;
+  metricName: string;
   operator: string;
   threshold: number;
+  durationSeconds: number;
   severity: string;
+  enabled?: boolean;
 }
 
 interface RulesState {
@@ -109,7 +110,7 @@ const rulesSlice = createSlice({
       .addCase(toggleRule.fulfilled, (state, action) => {
         const { id, enable } = action.payload;
         const rule = state.rules.find((r) => r.id === id);
-        if (rule) rule.active = enable;
+        if (rule) rule.enabled = enable;
       })
       .addCase(deleteRule.fulfilled, (state, action) => {
         state.rules = state.rules.filter((r) => r.id !== action.payload);

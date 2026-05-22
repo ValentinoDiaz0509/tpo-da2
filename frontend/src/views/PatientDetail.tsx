@@ -93,7 +93,7 @@ const PatientDetail = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           {hasCriticalAlert && <Chip label="Alerta Crítica" color="error" size="small" />}
           <Typography variant="body2" color="text.secondary">
-            Habitación {patient.roomNumber}, Cama {patient.bedNumber}
+            Habitación {patient.room}, Cama {patient.bed}
           </Typography>
         </Box>
       </Box>
@@ -115,12 +115,11 @@ const PatientDetail = () => {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Avatar sx={{ width: 56, height: 56, bgcolor: 'primary.main', fontSize: '1.25rem', fontWeight: 700 }}>
-            {patient.firstName?.[0]}{patient.lastName?.[0]}
+            {patient.name?.split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
           </Avatar>
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
-              {patient.lastName},<br />
-              {patient.firstName}
+              {patient.name}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               ID: {patient.id.substring(0, 8)}...
@@ -216,7 +215,7 @@ const PatientDetail = () => {
                       {alert.message}
                     </Typography>
                     <Typography variant="caption" color="text.disabled">
-                      {new Date(alert.createdAt).toLocaleTimeString()}
+                      {new Date(alert.triggeredAt).toLocaleTimeString()}
                     </Typography>
                   </Box>
                   {!alert.acknowledged && (
