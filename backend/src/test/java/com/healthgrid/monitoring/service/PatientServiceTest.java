@@ -1,6 +1,8 @@
 package com.healthgrid.monitoring.service;
 
 import com.healthgrid.monitoring.dto.PatientDTO;
+import com.healthgrid.monitoring.exception.ApplicationException;
+import com.healthgrid.monitoring.exception.ExceptionEnum;
 import com.healthgrid.monitoring.model.Patient;
 import com.healthgrid.monitoring.model.PatientStatus;
 import com.healthgrid.monitoring.repository.PatientRepository;
@@ -88,7 +90,11 @@ class PatientServiceTest {
         UUID missingId = UUID.randomUUID();
         when(patientRepository.findById(missingId)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> patientService.getPatientById(missingId));
+        ApplicationException exception = assertThrows(ApplicationException.class,
+            () -> patientService.getPatientById(missingId));
+
+        assertEquals(ExceptionEnum.PATIENT_NOT_FOUND, exception.getExceptionEnum());
+        assertEquals("Patient not found with ID: " + missingId, exception.getMessage());
     }
 
     @Test

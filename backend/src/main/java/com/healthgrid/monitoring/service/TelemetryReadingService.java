@@ -1,6 +1,8 @@
 package com.healthgrid.monitoring.service;
 
 import com.healthgrid.monitoring.dto.TelemetryReadingDTO;
+import com.healthgrid.monitoring.exception.ApplicationException;
+import com.healthgrid.monitoring.exception.ExceptionEnum;
 import com.healthgrid.monitoring.model.Patient;
 import com.healthgrid.monitoring.model.TelemetryReading;
 import com.healthgrid.monitoring.repository.PatientRepository;
@@ -39,7 +41,7 @@ public class TelemetryReadingService {
         log.info("Recording telemetry reading for patient ID: {}", patientId);
         
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         TelemetryReading reading = TelemetryReading.builder()
             .patient(patient)
@@ -48,6 +50,7 @@ public class TelemetryReadingService {
             .systolicPressure(readingDTO.getSystolicPressure())
             .diastolicPressure(readingDTO.getDiastolicPressure())
             .temperature(readingDTO.getTemperature())
+            .recordedAt(readingDTO.getRecordedAt() != null ? readingDTO.getRecordedAt() : LocalDateTime.now())
             .build();
 
         TelemetryReading savedReading = telemetryReadingRepository.save(reading);
@@ -65,11 +68,11 @@ public class TelemetryReadingService {
     @Transactional(readOnly = true)
     public TelemetryReadingDTO getLatestReading(UUID patientId) {
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         TelemetryReading reading = telemetryReadingRepository.findLatestReadingForPatient(patient);
         if (reading == null) {
-            throw new RuntimeException("No telemetry readings found for patient ID: " + patientId);
+            throw new ApplicationException(ExceptionEnum.TELEMETRY_READING_NOT_FOUND, patientId.toString());
         }
         
         return convertToDTO(reading);
@@ -84,7 +87,7 @@ public class TelemetryReadingService {
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getPatientReadings(UUID patientId) {
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         return telemetryReadingRepository.findLatestReadingsByPatient(patient)
             .stream()
@@ -103,7 +106,7 @@ public class TelemetryReadingService {
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getReadingsByTimeRange(UUID patientId, LocalDateTime startTime, LocalDateTime endTime) {
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         return telemetryReadingRepository.findReadingsByPatientAndTimeRange(patient, startTime, endTime)
             .stream()
@@ -121,7 +124,7 @@ public class TelemetryReadingService {
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getHighHeartRateReadings(UUID patientId, Float threshold) {
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         return telemetryReadingRepository.findByPatientAndHighHeartRate(patient, threshold)
             .stream()
@@ -139,7 +142,7 @@ public class TelemetryReadingService {
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getLowSpO2Readings(UUID patientId, Float threshold) {
         Patient patient = patientRepository.findById(patientId)
-            .orElseThrow(() -> new RuntimeException("Patient not found with ID: " + patientId));
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
         return telemetryReadingRepository.findByPatientAndLowSpO2(patient, threshold)
             .stream()
