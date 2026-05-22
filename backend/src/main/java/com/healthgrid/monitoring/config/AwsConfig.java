@@ -7,12 +7,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
+import software.amazon.awssdk.identity.spi.IdentityProvider;
+import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 import java.net.URI;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * AWS Configuration for SQS client and event serialization.
@@ -51,9 +53,15 @@ public class AwsConfig {
     @ConditionalOnProperty(name = "aws.sqs.enabled", havingValue = "true", matchIfMissing = true)
     public SqsClient sqsClient() {
         // TODO(core): reemplazar cliente/config directa por el mecanismo de publicacion/consumo estandar provisto por Core.
-        // Create credentials provider
-        AwsBasicCredentials credentials = AwsBasicCredentials.create(awsAccessKey, awsSecretKey);
-        StaticCredentialsProvider credentialsProvider = StaticCredentialsProvider.create(credentials);
+        AwsCredentialsIdentity identity = AwsCredentialsIdentity.create(awsAccessKey, awsSecretKey);
+        IdentityProvider<AwsCredentialsIdentity> credentialsProvider = new IdentityProvider<>() {
+            @Override
+            public Class<AwsCredentialsIdentity> identityType() { return AwsCredentialsIdentity.class; }
+            @Override
+            public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
+                return CompletableFuture.completedFuture(identity);
+            }
+        };
 
         // Build SqsClient
         SqsClientBuilder builder = SqsClient.builder()
