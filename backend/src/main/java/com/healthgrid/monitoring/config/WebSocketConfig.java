@@ -43,7 +43,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-                .setAllowedOrigins("*")  // Configure CORS appropriately for production
+                .setAllowedOriginPatterns("*")  // Configure CORS appropriately for production
                 .withSockJS();           // Add fallback for non-WebSocket browsers
     }
 

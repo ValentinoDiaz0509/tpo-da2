@@ -14,10 +14,10 @@ export interface LatestMetrics {
 }
 
 export interface ActiveAlert {
-  id: string;
+  alert_id: string;
   message: string;
   severity: 'CRITICAL' | 'WARNING' | string;
-  createdAt?: string;
+  triggered_at?: string;
 }
 
 export interface PatientMonitoring {
@@ -33,17 +33,18 @@ export interface PatientMonitoring {
 export interface WsPatientUpdate {
   patient_id: string;
   heart_rate?: number;
-  sp_o2?: number;
+  spo2?: number;
   systolic_pressure?: number;
   diastolic_pressure?: number;
+  temperature?: number;
 }
 
 export interface CriticalAlert {
   id: string;
   message: string;
   severity: string;
-  createdAt: string;
-  patient: { id: string };
+  triggeredAt: string;
+  patientId: string;
 }
 
 interface PatientsState {
@@ -125,7 +126,7 @@ const patientsSlice = createSlice({
           },
           spo2: {
             ...patient.latest_metrics?.spo2,
-            value: update.sp_o2 ?? patient.latest_metrics?.spo2?.value ?? 0,
+            value: update.spo2 ?? patient.latest_metrics?.spo2?.value ?? 0,
           },
           systolic_pressure: {
             ...patient.latest_metrics?.systolic_pressure,
@@ -164,7 +165,7 @@ const patientsSlice = createSlice({
         const alertId = action.payload;
         state.patients = state.patients.map((p) => ({
           ...p,
-          active_alerts: (p.active_alerts ?? []).filter((a) => a.id !== alertId),
+          active_alerts: (p.active_alerts ?? []).filter((a) => a.alert_id !== alertId),
         }));
       })
       .addCase(acknowledgeAlert.rejected, (state) => {

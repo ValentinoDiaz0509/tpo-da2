@@ -3,10 +3,9 @@ import { apiFetch } from '../../services/api';
 
 export interface Patient {
   id: string;
-  firstName: string;
-  lastName: string;
-  roomNumber: string;
-  bedNumber: string;
+  name: string;
+  room: string;
+  bed: string;
   status?: string;
 }
 
@@ -15,17 +14,17 @@ export interface Alert {
   message: string;
   severity: 'CRITICAL' | 'WARNING' | string;
   acknowledged: boolean;
-  createdAt: string;
+  triggeredAt: string;
   rule?: { description: string };
 }
 
 export interface TelemetryReading {
-  timestamp: string;
+  recordedAt: string;
   heartRate?: number;
-  spo2?: number;
-  respiratoryRate?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
+  spO2?: number;
+  systolicPressure?: number;
+  diastolicPressure?: number;
+  temperature?: number;
 }
 
 export interface CurrentTelemetry {
@@ -69,6 +68,9 @@ const initialState: PatientDetailState = {
 const formatTime = (date: Date): string =>
   `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
 
+const formatLocalDateTime = (date: Date): string =>
+  `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+
 export const fetchPatientDetail = createAsyncThunk(
   'patientDetail/fetchPatient',
   async (id: string, { rejectWithValue }) => {
@@ -96,10 +98,10 @@ export const fetchPatientTelemetry = createAsyncThunk(
   'patientDetail/fetchTelemetry',
   async (id: string, { rejectWithValue }) => {
     try {
-      const endTime = new Date().toISOString();
-      const startTime = new Date(Date.now() - 15 * 60000).toISOString();
+      const endTime = formatLocalDateTime(new Date());
+      const startTime = formatLocalDateTime(new Date(Date.now() - 15 * 60000));
       const data = await apiFetch<TelemetryReading[]>(
-        `/telemetry-readings/patient/${id}/range?startTime=${startTime}&endTime=${endTime}`,
+        `/telemetry/patient/${id}/range?startTime=${startTime}&endTime=${endTime}`,
       );
       return data ?? [];
     } catch (error) {
@@ -127,13 +129,11 @@ export const acknowledgeAlertInDetail = createAsyncThunk(
 );
 
 export interface WsDetailUpdate {
-  telemetry?: {
-    heartRate?: number;
-    spo2?: number;
-    respiratoryRate?: number;
-    bloodPressureSystolic?: number;
-    bloodPressureDiastolic?: number;
-  };
+  heart_rate?: number;
+  spo2?: number;
+  systolic_pressure?: number;
+  diastolic_pressure?: number;
+  temperature?: number;
 }
 
 const patientDetailSlice = createSlice({
@@ -148,17 +148,16 @@ const patientDetailSlice = createSlice({
       state.error = null;
     },
     liveUpdate(state, action: PayloadAction<WsDetailUpdate>) {
-      const t = action.payload.telemetry;
-      if (!t) return;
+      const t = action.payload;
       state.telemetry = {
-        heartRate: t.heartRate ?? '--',
+        heartRate: t.heart_rate ?? '--',
         spo2: t.spo2 ?? '--',
-        respiratoryRate: t.respiratoryRate ?? '--',
-        bloodPressure: `${t.bloodPressureSystolic ?? '--'}/${t.bloodPressureDiastolic ?? '--'}`,
+        respiratoryRate: '--',
+        bloodPressure: `${t.systolic_pressure ?? '--'}/${t.diastolic_pressure ?? '--'}`,
       };
       const newPoint: ChartPoint = {
         time: formatTime(new Date()),
-        value: t.heartRate,
+        value: t.heart_rate,
         spo2: t.spo2,
       };
       const updated = [...state.chartData, newPoint];
@@ -187,18 +186,18 @@ const patientDetailSlice = createSlice({
         if (readings.length === 0) return;
         const chartData: ChartPoint[] = readings
           .map((r) => ({
-            time: formatTime(new Date(r.timestamp)),
+            time: formatTime(new Date(r.recordedAt)),
             value: r.heartRate,
-            spo2: r.spo2,
+            spo2: r.spO2,
           }))
           .reverse();
         state.chartData = chartData;
         const latest = readings[0];
         state.telemetry = {
           heartRate: latest.heartRate ?? '--',
-          spo2: latest.spo2 ?? '--',
-          respiratoryRate: latest.respiratoryRate ?? '--',
-          bloodPressure: `${latest.bloodPressureSystolic ?? '--'}/${latest.bloodPressureDiastolic ?? '--'}`,
+          spo2: latest.spO2 ?? '--',
+          respiratoryRate: '--',
+          bloodPressure: `${latest.systolicPressure ?? '--'}/${latest.diastolicPressure ?? '--'}`,
         };
       })
       .addCase(acknowledgeAlertInDetail.fulfilled, (state, action) => {

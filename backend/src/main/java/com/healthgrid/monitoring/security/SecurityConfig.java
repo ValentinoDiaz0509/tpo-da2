@@ -47,13 +47,14 @@ public class SecurityConfig {
                 // Public endpoints (no auth required)
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/health", "/actuator/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()  // Auth endpoints
+                .requestMatchers("/ws/**").permitAll()
+                .requestMatchers("/ws").permitAll()
                 
                 // Protected endpoints (require JWT)
                 .requestMatchers("/patients/**").authenticated()
                 .requestMatchers("/telemetry/**").authenticated()
                 .requestMatchers("/rules/**").authenticated()
                 .requestMatchers("/alerts/**").authenticated()
-                .requestMatchers("/ws").authenticated()  // WebSocket also requires auth
                 
                 // Default: any other request requires authentication
                 .anyRequest().authenticated()

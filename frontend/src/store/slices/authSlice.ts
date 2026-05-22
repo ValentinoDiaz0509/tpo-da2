@@ -1,4 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { API_BASE_URL } from '../../services/api';
 
 export interface UserRole {
   name: string;
@@ -20,6 +21,12 @@ interface AuthState {
   error: string | null;
 }
 
+interface TokenResponse {
+  token: string;
+  module: string;
+  userId: string;
+}
+
 const initialState: AuthState = {
   user: null,
   token: null,
@@ -31,25 +38,36 @@ const initialState: AuthState = {
 export const loginThunk = createAsyncThunk(
   'auth/login',
   async (
-    { email, password: _password }: { email: string; password: string },
+    { email, password }: { email: string; password: string },
     { rejectWithValue },
   ) => {
     try {
-      // Mock login — same behaviour as the old AuthContext
-      // TODO: Replace with real M10 call when available:
-      // body: JSON.stringify({ email, password: _password })
-      const responseToken = 'mock-jwt-token-for-m6';
+      if (!email.trim() || !password.trim()) {
+        throw new Error('Email y contraseña son requeridos');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/auth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'DASHBOARD', userId: email }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Login failed: ${response.status}`);
+      }
+
+      const tokenData = (await response.json()) as TokenResponse;
       const userData: User = {
         id: 1,
-        first_name: email.split('@')[0].toUpperCase(),
+        first_name: tokenData.userId.split('@')[0].toUpperCase(),
         last_name: 'Grid',
-        email,
+        email: tokenData.userId,
         roles: [{ name: 'ENFERMERO' }],
       };
 
-      localStorage.setItem('token', responseToken);
+      localStorage.setItem('token', tokenData.token);
       localStorage.setItem('user', JSON.stringify(userData));
-      return { token: responseToken, user: userData };
+      return { token: tokenData.token, user: userData };
     } catch (error) {
       return rejectWithValue((error as Error).message);
     }

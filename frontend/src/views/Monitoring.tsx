@@ -138,7 +138,7 @@ const Monitoring = () => {
                       size="small"
                       disabled={ackLoading}
                       onClick={() =>
-                        dispatch(acknowledgeAlert({ alertId: currentCriticalAlert.id }))
+                        dispatch(acknowledgeAlert({ alertId: currentCriticalAlert.alert_id }))
                       }
                       sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } }}
                     >
@@ -160,7 +160,7 @@ const Monitoring = () => {
                     HORA DE ALERTA
                   </Typography>
                   <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                    {new Date(currentCriticalAlert.createdAt ?? Date.now()).toLocaleTimeString()}
+                    {new Date(currentCriticalAlert.triggered_at ?? Date.now()).toLocaleTimeString()}
                   </Typography>
                 </Box>
               </Box>
