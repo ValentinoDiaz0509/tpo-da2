@@ -25,8 +25,8 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@EqualsAndHashCode(exclude = {"telemetryReadings", "alerts", "createdAt", "updatedAt"})
-@ToString(exclude = {"telemetryReadings", "alerts"})
+@EqualsAndHashCode(exclude = {"alerts", "createdAt", "updatedAt"})
+@ToString(exclude = {"alerts"})
 public class Patient {
 
     @Id
@@ -63,10 +63,10 @@ public class Patient {
     private LocalDateTime updatedAt;
 
     /**
-     * One-to-Many relationship: Una paciente tiene muchas lecturas de telemetría
+     * Telemetry readings for this patient live in DynamoDB (keyed by this patient's id),
+     * NOT in Postgres — so there is no JPA relationship here. Query them via
+     * TelemetryReadingRepository using {@link #getId()}.
      */
-    @OneToMany(mappedBy = "patient", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<TelemetryReading> telemetryReadings = new ArrayList<>();
 
     /**
      * One-to-Many relationship: Un paciente tiene muchas alertas

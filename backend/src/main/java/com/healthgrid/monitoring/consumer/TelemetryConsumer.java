@@ -4,7 +4,6 @@ import com.healthgrid.monitoring.dto.TelemetryMessageDTO;
 import com.healthgrid.monitoring.dto.TelemetryReadingDTO;
 import com.healthgrid.monitoring.model.Alert;
 import com.healthgrid.monitoring.model.TelemetryReading;
-import com.healthgrid.monitoring.repository.TelemetryReadingRepository;
 import com.healthgrid.monitoring.service.RuleEngineService;
 import com.healthgrid.monitoring.service.TelemetryReadingService;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +30,6 @@ public class TelemetryConsumer {
     // TODO(core): adaptar este consumer al contrato de eventos/routing definido por Core.
     private final TelemetryReadingService telemetryReadingService;
     private final RuleEngineService ruleEngineService;
-    private final TelemetryReadingRepository telemetryReadingRepository;
     
     /**
      * Consumidor de mensajes de telemetría desde AWS SQS.
@@ -60,15 +58,25 @@ public class TelemetryConsumer {
                 return; // Ignorar duplicado
             }
 
-            // PASO 3: Convertir a DTO y guardar lectura
+            // PASO 3: Convertir a DTO y guardar lectura (en DynamoDB)
             TelemetryReadingDTO readingDTO = convertToReadingDTO(telemetryMessage);
             TelemetryReadingDTO savedReadingDTO = telemetryReadingService.recordReading(
                 telemetryMessage.getPatientId(),
                 readingDTO
             );
 
-            TelemetryReading savedReading = telemetryReadingRepository.findById(savedReadingDTO.getId())
-                .orElseThrow(() -> new IllegalStateException("Saved telemetry reading not found"));
+            // Reconstruir la entidad desde el DTO guardado (DynamoDB usa clave compuesta,
+            // no un findById por UUID).
+            TelemetryReading savedReading = TelemetryReading.builder()
+                .id(savedReadingDTO.getId())
+                .patientId(savedReadingDTO.getPatientId())
+                .heartRate(savedReadingDTO.getHeartRate())
+                .spO2(savedReadingDTO.getSpO2())
+                .systolicPressure(savedReadingDTO.getSystolicPressure())
+                .diastolicPressure(savedReadingDTO.getDiastolicPressure())
+                .temperature(savedReadingDTO.getTemperature())
+                .recordedAt(savedReadingDTO.getRecordedAt())
+                .build();
 
             log.info("✓ Telemetry reading saved with ID: {}", savedReading.getId());
 

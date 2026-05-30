@@ -1,11 +1,12 @@
 package com.healthgrid.monitoring.service;
 
 import com.healthgrid.monitoring.model.Alert;
-import com.healthgrid.monitoring.model.AlertSeverity;
+import com.healthgrid.monitoring.model.Patient;
 import com.healthgrid.monitoring.model.Rule;
 import com.healthgrid.monitoring.model.RuleOperator;
 import com.healthgrid.monitoring.model.TelemetryReading;
 import com.healthgrid.monitoring.repository.AlertRepository;
+import com.healthgrid.monitoring.repository.PatientRepository;
 import com.healthgrid.monitoring.repository.RuleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +29,7 @@ public class HealthRuleEvaluationService {
     private final RuleRepository ruleRepository;
     private final AlertRepository alertRepository;
     private final AlertService alertService;
+    private final PatientRepository patientRepository;
 
     /**
      * Evaluate all active rules against a telemetry reading.
@@ -38,7 +40,7 @@ public class HealthRuleEvaluationService {
      */
     public List<Alert> evaluateReadingAgainstRules(TelemetryReading reading) {
         log.info("Evaluating telemetry reading ID: {} for patient: {} against active rules",
-                reading.getId(), reading.getPatient().getId());
+                reading.getId(), reading.getPatientId());
 
         List<Rule> activeRules = ruleRepository.findByEnabledTrue();
         List<Alert> generatedAlerts = new java.util.ArrayList<>();
@@ -50,7 +52,7 @@ public class HealthRuleEvaluationService {
                 generatedAlerts.add(alert);
 
                 log.warn("Alert generated for patient: {}, Rule: {}, Severity: {}",
-                        reading.getPatient().getId(), rule.getMetricName(), rule.getSeverity());
+                        reading.getPatientId(), rule.getMetricName(), rule.getSeverity());
             }
         }
 
@@ -69,7 +71,7 @@ public class HealthRuleEvaluationService {
 
         if (metricValue == null) {
             log.debug("Metric {} not found in reading for patient: {}",
-                    rule.getMetricName(), reading.getPatient().getId());
+                    rule.getMetricName(), reading.getPatientId());
             return false;
         }
 
@@ -129,8 +131,12 @@ public class HealthRuleEvaluationService {
                 rule.getOperator().getSymbol()
         );
 
+        Patient patient = patientRepository.findById(reading.getPatientId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Patient not found: " + reading.getPatientId()));
+
         return Alert.builder()
-                .patient(reading.getPatient())
+                .patient(patient)
                 .severity(rule.getSeverity())
                 .message(alertMessage)
                 .acknowledged(false)

@@ -1,99 +1,105 @@
 package com.healthgrid.monitoring.repository;
 
+import com.healthgrid.monitoring.config.DynamoDbConfig;
 import com.healthgrid.monitoring.model.TelemetryReading;
-import com.healthgrid.monitoring.model.Patient;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;
+import software.amazon.awssdk.enhanced.dynamodb.Key;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
- * Repository for TelemetryReading entity operations.
- * Provides data access layer for patient telemetry/vitals data.
+ * Data access for {@link TelemetryReading} backed by <b>DynamoDB</b>.
+ *
+ * <p>Replaces the former JPA repository. Reads are single-partition queries keyed by
+ * {@code patientId}; the rule-engine lookback window is a sort-key range query. Threshold
+ * finders query the partition then filter client-side (no GSI needed for this volume).
  */
 @Repository
-public interface TelemetryReadingRepository extends JpaRepository<TelemetryReading, UUID> {
+@RequiredArgsConstructor
+public class TelemetryReadingRepository {
 
-    /**
-     * Find all telemetry readings for a specific patient.
-     *
-     * @param patient the patient
-     * @return list of telemetry readings for the patient
-     */
-    List<TelemetryReading> findByPatient(Patient patient);
+    private final DynamoDbTable<TelemetryReading> table;
 
-    /**
-     * Find all telemetry readings for a specific patient, ordered by recorded time (descending).
-     *
-     * @param patient the patient
-     * @return list of telemetry readings ordered by most recent first
-     */
-    @Query("SELECT t FROM TelemetryReading t WHERE t.patient = :patient ORDER BY t.recordedAt DESC")
-    List<TelemetryReading> findLatestReadingsByPatient(@Param("patient") Patient patient);
-
-    /**
-     * Find telemetry readings for a patient within a time range.
-     *
-     * @param patient the patient
-     * @param startTime the start timestamp
-     * @param endTime the end timestamp
-     * @return list of telemetry readings within the time range
-     */
-    @Query("SELECT t FROM TelemetryReading t WHERE t.patient = :patient AND t.recordedAt BETWEEN :startTime AND :endTime ORDER BY t.recordedAt DESC")
-    List<TelemetryReading> findReadingsByPatientAndTimeRange(
-        @Param("patient") Patient patient,
-        @Param("startTime") LocalDateTime startTime,
-        @Param("endTime") LocalDateTime endTime
-    );
-
-    /**
-     * Find the latest telemetry reading for a patient.
-     *
-     * @param patient the patient
-     * @return the most recent telemetry reading
-     */
-    TelemetryReading findFirstByPatientOrderByRecordedAtDesc(Patient patient);
-
-    default TelemetryReading findLatestReadingForPatient(Patient patient) {
-        return findFirstByPatientOrderByRecordedAtDesc(patient);
+    public TelemetryReading save(TelemetryReading reading) {
+        table.putItem(reading);
+        return reading;
     }
 
-    /**
-     * Find readings where heart rate exceeds a threshold.
-     *
-     * @param patient the patient
-     * @param threshold the heart rate threshold
-     * @return list of readings with high heart rate
-     */
-    @Query("SELECT t FROM TelemetryReading t WHERE t.patient = :patient AND t.heartRate > :threshold ORDER BY t.recordedAt DESC")
-    List<TelemetryReading> findByPatientAndHighHeartRate(
-        @Param("patient") Patient patient,
-        @Param("threshold") Float threshold
-    );
+    /** All readings for a patient, most recent first. */
+    public List<TelemetryReading> findByPatientId(UUID patientId) {
+        return queryDescending(patientId);
+    }
 
-    /**
-     * Find readings where SpO2 is below a threshold.
-     *
-     * @param patient the patient
-     * @param threshold the SpO2 threshold
-     * @return list of readings with low SpO2
-     */
-    @Query("SELECT t FROM TelemetryReading t WHERE t.patient = :patient AND t.spO2 < :threshold ORDER BY t.recordedAt DESC")
-    List<TelemetryReading> findByPatientAndLowSpO2(
-        @Param("patient") Patient patient,
-        @Param("threshold") Float threshold
-    );
+    /** All readings for a patient, most recent first (alias kept for callers). */
+    public List<TelemetryReading> findLatestReadingsByPatient(UUID patientId) {
+        return queryDescending(patientId);
+    }
 
-    /**
-     * Delete all readings for a patient (used when patient is deleted).
-     *
-     * @param patient the patient
-     * @return number of deleted readings
-     */
-    long deleteByPatient(Patient patient);
+    /** Readings within [startTime, endTime] for a patient, most recent first. */
+    public List<TelemetryReading> findReadingsByPatientAndTimeRange(
+            UUID patientId, LocalDateTime startTime, LocalDateTime endTime) {
+        QueryConditional between = QueryConditional.sortBetween(
+            keyOf(patientId, startTime),
+            keyOf(patientId, endTime));
+        return table.query(QueryEnhancedRequest.builder()
+                .queryConditional(between)
+                .scanIndexForward(false)
+                .build())
+            .items().stream().collect(Collectors.toList());
+    }
 
+    /** Most recent reading for a patient, or {@code null} if none. */
+    public TelemetryReading findLatestReadingForPatient(UUID patientId) {
+        return table.query(QueryEnhancedRequest.builder()
+                .queryConditional(partition(patientId))
+                .scanIndexForward(false)
+                .limit(1)
+                .build())
+            .items().stream().findFirst().orElse(null);
+    }
+
+    public List<TelemetryReading> findByPatientAndHighHeartRate(UUID patientId, Float threshold) {
+        return queryDescending(patientId).stream()
+            .filter(r -> r.getHeartRate() != null && r.getHeartRate() > threshold)
+            .collect(Collectors.toList());
+    }
+
+    public List<TelemetryReading> findByPatientAndLowSpO2(UUID patientId, Float threshold) {
+        return queryDescending(patientId).stream()
+            .filter(r -> r.getSpO2() != null && r.getSpO2() < threshold)
+            .collect(Collectors.toList());
+    }
+
+    /** Delete all readings for a patient (used when a patient is removed). */
+    public long deleteByPatientId(UUID patientId) {
+        List<TelemetryReading> items = queryDescending(patientId);
+        items.forEach(r -> table.deleteItem(keyOf(patientId, r.getRecordedAt())));
+        return items.size();
+    }
+
+    private List<TelemetryReading> queryDescending(UUID patientId) {
+        return table.query(QueryEnhancedRequest.builder()
+                .queryConditional(partition(patientId))
+                .scanIndexForward(false)
+                .build())
+            .items().stream().collect(Collectors.toList());
+    }
+
+    private static QueryConditional partition(UUID patientId) {
+        return QueryConditional.keyEqualTo(Key.builder().partitionValue(patientId.toString()).build());
+    }
+
+    private static Key keyOf(UUID patientId, LocalDateTime recordedAt) {
+        return Key.builder()
+            .partitionValue(patientId.toString())
+            .sortValue(DynamoDbConfig.TIMESTAMP_FORMAT.format(recordedAt))
+            .build();
+    }
 }

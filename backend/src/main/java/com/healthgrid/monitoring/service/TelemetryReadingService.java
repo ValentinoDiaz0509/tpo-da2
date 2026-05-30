@@ -3,7 +3,6 @@ package com.healthgrid.monitoring.service;
 import com.healthgrid.monitoring.dto.TelemetryReadingDTO;
 import com.healthgrid.monitoring.exception.ApplicationException;
 import com.healthgrid.monitoring.exception.ExceptionEnum;
-import com.healthgrid.monitoring.model.Patient;
 import com.healthgrid.monitoring.model.TelemetryReading;
 import com.healthgrid.monitoring.repository.PatientRepository;
 import com.healthgrid.monitoring.repository.TelemetryReadingRepository;
@@ -13,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -30,6 +30,9 @@ public class TelemetryReadingService {
     private final TelemetryReadingRepository telemetryReadingRepository;
     private final PatientRepository patientRepository;
 
+    /** Telemetry readings auto-purge from DynamoDB after this many seconds (90 days). */
+    private static final long TTL_SECONDS = 90L * 24 * 60 * 60;
+
     /**
      * Record a new telemetry reading for a patient.
      *
@@ -40,17 +43,22 @@ public class TelemetryReadingService {
     public TelemetryReadingDTO recordReading(UUID patientId, TelemetryReadingDTO readingDTO) {
         log.info("Recording telemetry reading for patient ID: {}", patientId);
         
-        Patient patient = patientRepository.findById(patientId)
+        // Validate the patient exists in Postgres before storing the reading in DynamoDB.
+        patientRepository.findById(patientId)
             .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
+        LocalDateTime recordedAt = readingDTO.getRecordedAt() != null ? readingDTO.getRecordedAt() : LocalDateTime.now();
+
         TelemetryReading reading = TelemetryReading.builder()
-            .patient(patient)
+            .id(UUID.randomUUID())
+            .patientId(patientId)
             .heartRate(readingDTO.getHeartRate())
             .spO2(readingDTO.getSpO2())
             .systolicPressure(readingDTO.getSystolicPressure())
             .diastolicPressure(readingDTO.getDiastolicPressure())
             .temperature(readingDTO.getTemperature())
-            .recordedAt(readingDTO.getRecordedAt() != null ? readingDTO.getRecordedAt() : LocalDateTime.now())
+            .recordedAt(recordedAt)
+            .expiresAt(recordedAt.toEpochSecond(ZoneOffset.UTC) + TTL_SECONDS)
             .build();
 
         TelemetryReading savedReading = telemetryReadingRepository.save(reading);
@@ -67,10 +75,10 @@ public class TelemetryReadingService {
      */
     @Transactional(readOnly = true)
     public TelemetryReadingDTO getLatestReading(UUID patientId) {
-        Patient patient = patientRepository.findById(patientId)
+        patientRepository.findById(patientId)
             .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
-        TelemetryReading reading = telemetryReadingRepository.findLatestReadingForPatient(patient);
+        TelemetryReading reading = telemetryReadingRepository.findLatestReadingForPatient(patientId);
         if (reading == null) {
             throw new ApplicationException(ExceptionEnum.TELEMETRY_READING_NOT_FOUND, patientId.toString());
         }
@@ -86,10 +94,10 @@ public class TelemetryReadingService {
      */
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getPatientReadings(UUID patientId) {
-        Patient patient = patientRepository.findById(patientId)
+        patientRepository.findById(patientId)
             .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
-        return telemetryReadingRepository.findLatestReadingsByPatient(patient)
+        return telemetryReadingRepository.findLatestReadingsByPatient(patientId)
             .stream()
             .map(this::convertToDTO)
             .collect(Collectors.toList());
@@ -105,10 +113,10 @@ public class TelemetryReadingService {
      */
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getReadingsByTimeRange(UUID patientId, LocalDateTime startTime, LocalDateTime endTime) {
-        Patient patient = patientRepository.findById(patientId)
+        patientRepository.findById(patientId)
             .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
-        return telemetryReadingRepository.findReadingsByPatientAndTimeRange(patient, startTime, endTime)
+        return telemetryReadingRepository.findReadingsByPatientAndTimeRange(patientId, startTime, endTime)
             .stream()
             .map(this::convertToDTO)
             .collect(Collectors.toList());
@@ -123,10 +131,10 @@ public class TelemetryReadingService {
      */
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getHighHeartRateReadings(UUID patientId, Float threshold) {
-        Patient patient = patientRepository.findById(patientId)
+        patientRepository.findById(patientId)
             .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
-        return telemetryReadingRepository.findByPatientAndHighHeartRate(patient, threshold)
+        return telemetryReadingRepository.findByPatientAndHighHeartRate(patientId, threshold)
             .stream()
             .map(this::convertToDTO)
             .collect(Collectors.toList());
@@ -141,10 +149,10 @@ public class TelemetryReadingService {
      */
     @Transactional(readOnly = true)
     public List<TelemetryReadingDTO> getLowSpO2Readings(UUID patientId, Float threshold) {
-        Patient patient = patientRepository.findById(patientId)
+        patientRepository.findById(patientId)
             .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
 
-        return telemetryReadingRepository.findByPatientAndLowSpO2(patient, threshold)
+        return telemetryReadingRepository.findByPatientAndLowSpO2(patientId, threshold)
             .stream()
             .map(this::convertToDTO)
             .collect(Collectors.toList());
@@ -159,7 +167,7 @@ public class TelemetryReadingService {
     private TelemetryReadingDTO convertToDTO(TelemetryReading reading) {
         return TelemetryReadingDTO.builder()
             .id(reading.getId())
-            .patientId(reading.getPatient().getId())
+            .patientId(reading.getPatientId())
             .heartRate(reading.getHeartRate())
             .spO2(reading.getSpO2())
             .systolicPressure(reading.getSystolicPressure())

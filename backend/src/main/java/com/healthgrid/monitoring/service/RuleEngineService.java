@@ -47,8 +47,8 @@ public class RuleEngineService {
         List<Alert> generatedAlerts = new ArrayList<>();
         
         // Validar que el paciente existe
-        Patient patient = patientRepository.findById(reading.getPatient().getId())
-            .orElseThrow(() -> new RuntimeException("Patient not found: " + reading.getPatient().getId()));
+        Patient patient = patientRepository.findById(reading.getPatientId())
+            .orElseThrow(() -> new RuntimeException("Patient not found: " + reading.getPatientId()));
         
         // Obtener todas las reglas activas
         List<Rule> activeRules = ruleRepository.findByEnabledTrue();
@@ -70,9 +70,9 @@ public class RuleEngineService {
             LocalDateTime lookbackTime = reading.getRecordedAt()
                 .minusMinutes(LOOKBACK_MINUTES);
             
-            List<TelemetryReading> historicalReadings = 
+            List<TelemetryReading> historicalReadings =
                 telemetryReadingRepository.findReadingsByPatientAndTimeRange(
-                    patient,
+                    patient.getId(),
                     lookbackTime,
                     reading.getRecordedAt()
                 );
@@ -245,7 +245,7 @@ public class RuleEngineService {
     private void sendMonitoringUpdate(TelemetryReading reading) {
         try {
             MonitoringUpdateDTO update = MonitoringUpdateDTO.builder()
-                .patientId(reading.getPatient().getId())
+                .patientId(reading.getPatientId())
                 .heartRate(reading.getHeartRate())
                 .spO2(reading.getSpO2())
                 .systolicPressure(reading.getSystolicPressure())
@@ -255,11 +255,11 @@ public class RuleEngineService {
                 .build();
             
             simpMessagingTemplate.convertAndSend(
-                "/topic/monitoring/" + reading.getPatient().getId(),
+                "/topic/monitoring/" + reading.getPatientId(),
                 update
             );
 
-            log.debug("✓ WebSocket update sent for patient: {}", reading.getPatient().getId());
+            log.debug("✓ WebSocket update sent for patient: {}", reading.getPatientId());
         } catch (Exception e) {
             log.warn("Failed to send WebSocket update (non-critical)", e);
         }

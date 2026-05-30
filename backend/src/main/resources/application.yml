@@ -51,6 +51,12 @@ aws:
     endpoint: http://localhost:4566
     region: us-east-1
     enabled: true
+  dynamodb:
+    # Telemetry time-series store. Blank endpoint (set AWS_DYNAMODB_ENDPOINT="" in prod)
+    # targets real DynamoDB; the default points at LocalStack/DynamoDB-Local for dev.
+    endpoint: ${AWS_DYNAMODB_ENDPOINT:http://localhost:4566}
+    region: ${AWS_REGION:us-east-1}
+    table-name: ${DYNAMODB_TELEMETRY_TABLE:m9-telemetry-readings}
 
 healthgrid:
   module6:

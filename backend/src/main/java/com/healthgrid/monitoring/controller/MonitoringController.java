@@ -83,8 +83,8 @@ public class MonitoringController {
      */
     private PatientMonitoringDTO buildPatientMonitoringDTO(Patient patient) {
         // PASO 1: Obtener última lectura de telemetría
-        Optional<TelemetryReading> latestReading = 
-            Optional.ofNullable(telemetryReadingRepository.findLatestReadingForPatient(patient));
+        Optional<TelemetryReading> latestReading =
+            Optional.ofNullable(telemetryReadingRepository.findLatestReadingForPatient(patient.getId()));
         
         // PASO 2: Construir LatestMetricsDTO (puede ser parcial)
         LatestMetricsDTO latestMetrics = latestReading
