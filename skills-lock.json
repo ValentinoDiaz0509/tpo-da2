@@ -6,6 +6,12 @@
       "sourceType": "github",
       "skillPath": "skills/cloud-architect/SKILL.md",
       "computedHash": "9082e59c3dc8f05378bc52dc043724e22da525eea38916becb8778e2d320ac92"
+    },
+    "github-actions-docs": {
+      "source": "xixu-me/skills",
+      "sourceType": "github",
+      "skillPath": "skills/github-actions-docs/SKILL.md",
+      "computedHash": "e9ac24e79715ef3060bd4ae376052f8d863b830604e69cb513b39764bf47ee53"
     }
   }
 }

@@ -1,0 +1,14 @@
+target/
+.idea/
+.vscode/
+*.iml
+.mvn/
+.git/
+.gitignore
+docker-compose.yml
+Dockerfile
+.dockerignore
+requests.http
+run.sh
+**/.DS_Store
+**/*.log

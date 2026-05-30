@@ -24,7 +24,7 @@ services:
     image: localstack/localstack:latest
     container_name: localstack-monitoring
     environment:
-      SERVICES: sqs
+      SERVICES: sqs,dynamodb
       DEBUG: 1
       DATA_DIR: /tmp/localstack/data
       DOCKER_HOST: unix:///var/run/docker.sock
@@ -34,6 +34,8 @@ services:
     volumes:
       - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
       - "/var/run/docker.sock:/var/run/docker.sock"
+      # Auto-runs once LocalStack is ready: creates the DynamoDB telemetry table.
+      - "./localstack-init:/etc/localstack/init/ready.d"
     networks:
       - monitoring-network
     depends_on:
