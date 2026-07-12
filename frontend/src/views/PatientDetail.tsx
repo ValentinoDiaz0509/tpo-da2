@@ -85,6 +85,9 @@ const PatientDetail = () => {
   }
 
   const hasCriticalAlert = alerts.some((a) => !a.acknowledged && a.severity === 'CRITICAL');
+  const unacknowledgedAlertIds = alerts
+    .filter((alert) => !alert.acknowledged)
+    .map((alert) => alert.id);
   const spo2Value = telemetry.spo2;
   const hrValue = telemetry.heartRate;
 
@@ -233,7 +236,7 @@ const PatientDetail = () => {
                       variant="outlined"
                       size="small"
                       sx={{ fontSize: '0.7rem', py: 0.25, px: 1, height: 'fit-content', alignSelf: 'center', flexShrink: 0 }}
-                      onClick={() => dispatch(acknowledgeAlertInDetail({ alertId: alert.id }))}
+                      onClick={() => dispatch(acknowledgeAlertInDetail({ alertIds: unacknowledgedAlertIds }))}
                     >
                       Visto
                     </Button>

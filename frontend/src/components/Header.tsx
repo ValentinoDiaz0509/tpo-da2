@@ -1,46 +1,37 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Box from '@mui/material/Box';
-import InputBase from '@mui/material/InputBase';
 import IconButton from '@mui/material/IconButton';
 import Badge from '@mui/material/Badge';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
 import Chip from '@mui/material/Chip';
-import SearchIcon from '@mui/icons-material/Search';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import { useAppDispatch, useAppSelector } from '../store';
 import { logout } from '../store/slices/authSlice';
-import { fetchCriticalAlerts, setPatientSearch } from '../store/slices/patientsSlice';
+import { fetchCriticalAlerts } from '../store/slices/patientsSlice';
 
 interface Props {
   height: number;
 }
 
-const SEARCH_DEBOUNCE_MS = 300;
-
 const Header = ({ height }: Props) => {
   const dispatch = useAppDispatch();
+  const location = useLocation();
   const user = useAppSelector((s) => s.auth.user);
   const headerAlerts = useAppSelector((s) => s.patients.headerAlerts);
-  const patientSearch = useAppSelector((s) => s.patients.query.search);
+  const headerTitle = location.pathname.startsWith('/monitoreo') ? 'Monitoreo' : '';
 
-  const [searchValue, setSearchValue] = useState(patientSearch);
   const [showNotifications, setShowNotifications] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refreshAlerts = () => {
     void dispatch(fetchCriticalAlerts());
   };
-
-  useEffect(() => {
-    setSearchValue(patientSearch);
-  }, [patientSearch]);
 
   useEffect(() => {
     refreshAlerts();
@@ -58,24 +49,6 @@ const Header = ({ height }: Props) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    debounceRef.current = setTimeout(() => {
-      if (searchValue !== patientSearch) {
-        dispatch(setPatientSearch(searchValue));
-      }
-    }, SEARCH_DEBOUNCE_MS);
-
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, [searchValue, patientSearch, dispatch]);
-
   return (
     <AppBar
       position="static"
@@ -89,31 +62,11 @@ const Header = ({ height }: Props) => {
       }}
     >
       <Toolbar sx={{ gap: 2, minHeight: `${height}px !important` }}>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            bgcolor: 'background.default',
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: 2,
-            px: 1.5,
-            py: 0.5,
-            flex: 1,
-            maxWidth: 400,
-          }}
-        >
-          <SearchIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
-          <InputBase
-            placeholder="Buscar por nombre o cama..."
-            value={searchValue}
-            onChange={(event) => setSearchValue(event.target.value)}
-            sx={{ fontSize: '0.875rem', flex: 1, color: 'text.primary' }}
-            inputProps={{ 'aria-label': 'buscar pacientes' }}
-          />
-        </Box>
-
+        {headerTitle && (
+          <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
+            {headerTitle}
+          </Typography>
+        )}
         <Box sx={{ flex: 1 }} />
 
         {user && (

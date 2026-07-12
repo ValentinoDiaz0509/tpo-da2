@@ -99,10 +99,6 @@ export const PATIENT_SORT_OPTIONS = [
   { value: 'severity,asc', label: 'Severidad (estables primero)' },
   { value: 'name,asc', label: 'Nombre (A-Z)' },
   { value: 'name,desc', label: 'Nombre (Z-A)' },
-  { value: 'room,asc', label: 'Habitación (A-Z)' },
-  { value: 'room,desc', label: 'Habitación (Z-A)' },
-  { value: 'bed,asc', label: 'Cama (A-Z)' },
-  { value: 'bed,desc', label: 'Cama (Z-A)' },
 ] as const;
 
 const initialState: PatientsState = {
@@ -134,6 +130,27 @@ const buildMonitoringQueryString = (query: PatientsQuery): string => {
     params.set('search', query.search.trim());
   }
   return params.toString();
+};
+
+const getAlertTimestamp = (date?: string): number => {
+  if (!date) return 0;
+  const timestamp = new Date(date).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const dedupeCriticalAlertsByPatient = (alerts: CriticalAlert[]): CriticalAlert[] => {
+  const latestByPatient = new Map<string, CriticalAlert>();
+
+  alerts.forEach((alert) => {
+    const existing = latestByPatient.get(alert.patientId);
+    if (!existing || getAlertTimestamp(alert.triggeredAt) >= getAlertTimestamp(existing.triggeredAt)) {
+      latestByPatient.set(alert.patientId, alert);
+    }
+  });
+
+  return Array.from(latestByPatient.values()).sort(
+    (a, b) => getAlertTimestamp(b.triggeredAt) - getAlertTimestamp(a.triggeredAt),
+  );
 };
 
 export const fetchPatientsPage = createAsyncThunk(
@@ -170,15 +187,29 @@ export const fetchCriticalAlerts = createAsyncThunk(
 export const acknowledgeAlert = createAsyncThunk(
   'patients/acknowledgeAlert',
   async (
-    { alertId, userName = 'Enfermería Central' }: { alertId: string; userName?: string },
+    {
+      alertId,
+      alertIds,
+      patientId,
+      userName = 'Enfermería Central',
+    }: { alertId?: string; alertIds?: string[]; patientId?: string; userName?: string },
     { rejectWithValue },
   ) => {
     try {
-      await apiFetch(
-        `/alerts/${alertId}/acknowledge?acknowledgedBy=${encodeURIComponent(userName)}`,
-        { method: 'PATCH' },
+      const ids = Array.from(new Set(alertIds ?? (alertId ? [alertId] : [])));
+      if (ids.length === 0) {
+        throw new Error('No hay alertas para reconocer');
+      }
+
+      await Promise.all(
+        ids.map((id) =>
+          apiFetch(
+            `/alerts/${id}/acknowledge?acknowledgedBy=${encodeURIComponent(userName)}`,
+            { method: 'PATCH' },
+          ),
+        ),
       );
-      return alertId;
+      return { alertIds: ids, patientId };
     } catch (error) {
       return rejectWithValue((error as Error).message);
     }
@@ -263,18 +294,22 @@ const patientsSlice = createSlice({
         state.error = action.payload as string;
       })
       .addCase(fetchCriticalAlerts.fulfilled, (state, action) => {
-        state.headerAlerts = action.payload;
+        state.headerAlerts = dedupeCriticalAlertsByPatient(action.payload);
       })
       .addCase(acknowledgeAlert.pending, (state) => {
         state.ackLoading = true;
       })
       .addCase(acknowledgeAlert.fulfilled, (state, action) => {
         state.ackLoading = false;
-        const alertId = action.payload;
+        const { alertIds, patientId } = action.payload;
+        const acknowledgedIds = new Set(alertIds);
         state.patients = state.patients.map((p) => ({
           ...p,
-          active_alerts: (p.active_alerts ?? []).filter((a) => a.alert_id !== alertId),
+          active_alerts: (p.active_alerts ?? []).filter((a) => !acknowledgedIds.has(a.alert_id)),
         }));
+        state.headerAlerts = state.headerAlerts.filter((alert) =>
+          patientId ? alert.patientId !== patientId : !acknowledgedIds.has(alert.id),
+        );
       })
       .addCase(acknowledgeAlert.rejected, (state) => {
         state.ackLoading = false;

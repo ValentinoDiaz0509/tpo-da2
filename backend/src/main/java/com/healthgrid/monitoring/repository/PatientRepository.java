@@ -90,6 +90,25 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     @Query(value = """
         SELECT p FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
+        GROUP BY p
+        ORDER BY COALESCE(MAX(CASE a.severity
+            WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
+            WHEN com.healthgrid.monitoring.model.AlertSeverity.WARNING THEN 2
+            ELSE NULL END),
+            CASE p.status
+            WHEN com.healthgrid.monitoring.model.PatientStatus.CRITICAL THEN 3
+            WHEN com.healthgrid.monitoring.model.PatientStatus.WARNING THEN 2
+            ELSE 1 END) DESC,
+            p.name ASC
+        """,
+        countQuery = """
+        SELECT COUNT(p) FROM Patient p
+        """)
+    Page<Patient> findAllSortedBySeverity(Pageable pageable);
+
+    @Query(value = """
+        SELECT p FROM Patient p
+        LEFT JOIN p.alerts a ON a.acknowledged = false
         WHERE (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
@@ -115,6 +134,25 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     @Query(value = """
         SELECT p FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
+        GROUP BY p
+        ORDER BY COALESCE(MAX(CASE a.severity
+            WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
+            WHEN com.healthgrid.monitoring.model.AlertSeverity.WARNING THEN 2
+            ELSE NULL END),
+            CASE p.status
+            WHEN com.healthgrid.monitoring.model.PatientStatus.CRITICAL THEN 3
+            WHEN com.healthgrid.monitoring.model.PatientStatus.WARNING THEN 2
+            ELSE 1 END) ASC,
+            p.name ASC
+        """,
+        countQuery = """
+        SELECT COUNT(p) FROM Patient p
+        """)
+    Page<Patient> findAllSortedBySeverityAsc(Pageable pageable);
+
+    @Query(value = """
+        SELECT p FROM Patient p
+        LEFT JOIN p.alerts a ON a.acknowledged = false
         WHERE (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
@@ -136,6 +174,22 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
         """)
     Page<Patient> findFilteredSortedBySeverityAsc(@Param("search") String search, Pageable pageable);
+
+    @Query("""
+        SELECT p.id AS patientId,
+        COALESCE(MAX(CASE a.severity
+            WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
+            WHEN com.healthgrid.monitoring.model.AlertSeverity.WARNING THEN 2
+            ELSE NULL END),
+            CASE p.status
+            WHEN com.healthgrid.monitoring.model.PatientStatus.CRITICAL THEN 3
+            WHEN com.healthgrid.monitoring.model.PatientStatus.WARNING THEN 2
+            ELSE 1 END) AS severityRank
+        FROM Patient p
+        LEFT JOIN p.alerts a ON a.acknowledged = false
+        GROUP BY p.id, p.status
+        """)
+    List<PatientSeverityRank> findAllPatientSeverityRanks();
 
     @Query("""
         SELECT p.id AS patientId,

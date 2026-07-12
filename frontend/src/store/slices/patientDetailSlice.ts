@@ -120,15 +120,24 @@ export const fetchPatientTelemetry = createAsyncThunk(
 export const acknowledgeAlertInDetail = createAsyncThunk(
   'patientDetail/acknowledgeAlert',
   async (
-    { alertId, userName = 'Médico Asignado' }: { alertId: string; userName?: string },
+    { alertId, alertIds, userName = 'Médico Asignado' }: { alertId?: string; alertIds?: string[]; userName?: string },
     { rejectWithValue },
   ) => {
     try {
-      await apiFetch(
-        `/alerts/${alertId}/acknowledge?acknowledgedBy=${encodeURIComponent(userName)}`,
-        { method: 'PATCH' },
+      const ids = Array.from(new Set(alertIds ?? (alertId ? [alertId] : [])));
+      if (ids.length === 0) {
+        throw new Error('No hay alertas para reconocer');
+      }
+
+      await Promise.all(
+        ids.map((id) =>
+          apiFetch(
+            `/alerts/${id}/acknowledge?acknowledgedBy=${encodeURIComponent(userName)}`,
+            { method: 'PATCH' },
+          ),
+        ),
       );
-      return alertId;
+      return ids;
     } catch (error) {
       return rejectWithValue((error as Error).message);
     }
@@ -225,9 +234,9 @@ const patientDetailSlice = createSlice({
         };
       })
       .addCase(acknowledgeAlertInDetail.fulfilled, (state, action) => {
-        const alertId = action.payload;
+        const acknowledgedIds = new Set(action.payload);
         state.alerts = state.alerts.map((a) =>
-          a.id === alertId ? { ...a, acknowledged: true } : a,
+          acknowledgedIds.has(a.id) ? { ...a, acknowledged: true } : a,
         );
       })
       .addCase(triggerEmergency.pending, (state) => {
