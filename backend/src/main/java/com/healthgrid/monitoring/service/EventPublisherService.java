@@ -42,7 +42,7 @@ public class EventPublisherService {
     private final RestTemplate restTemplate;
     private final CoreEventPublisher coreEventPublisher;
     
-    @Value("${admission-queue-url:http://localhost:4566/000000000000/admission-events-queue}")
+    @Value("${aws.sqs.admission-queue-url:http://localhost:4566/000000000000/admission-events-queue}")
     private String admissionQueueUrl;
 
     @Value("${healthgrid.module6.webhook.alerta-emergencia.url:http://localhost:8086/webhooks/monitoreo/alerta-emergencia}")
@@ -89,13 +89,17 @@ public class EventPublisherService {
             
             // PASO 5: Enviar a SQS con Message Group ID (para FIFO order)
             if (sqsClient.isPresent()) {
-                SendMessageRequest request = SendMessageRequest.builder()
+                SendMessageRequest.Builder requestBuilder = SendMessageRequest.builder()
                     .queueUrl(admissionQueueUrl)
-                    .messageBody(eventPayload)
-                    .messageGroupId("admission-events") // FIFO ordering
-                    .messageDeduplicationId(
-                        generateDeduplicationId(alert, rule)) // Evitar duplicados
-                    .build();
+                    .messageBody(eventPayload);
+
+                if (admissionQueueUrl.endsWith(".fifo")) {
+                    requestBuilder
+                        .messageGroupId("admission-events")
+                        .messageDeduplicationId(generateDeduplicationId(alert, rule));
+                }
+
+                SendMessageRequest request = requestBuilder.build();
 
                 SendMessageResponse response = sqsClient.get().sendMessage(request);
 

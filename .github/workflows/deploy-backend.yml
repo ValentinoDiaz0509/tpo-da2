@@ -1,0 +1,62 @@
+name: Deploy backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "infrastructure/cdk/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  STACK_NAME: M9Backend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read stack outputs
+        id: stack
+        run: |
+          outputs="$(aws cloudformation describe-stacks \
+            --stack-name "$STACK_NAME" \
+            --query 'Stacks[0].Outputs' \
+            --output json)"
+
+          echo "ecr_uri=$(jq -r '.[] | select(.OutputKey=="EcrRepositoryUri") | .OutputValue' <<< "$outputs")" >> "$GITHUB_OUTPUT"
+          echo "cluster=$(jq -r '.[] | select(.OutputKey=="ClusterName") | .OutputValue' <<< "$outputs")" >> "$GITHUB_OUTPUT"
+          echo "service=$(jq -r '.[] | select(.OutputKey=="ServiceName") | .OutputValue' <<< "$outputs")" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        run: |
+          docker build -t "${{ steps.stack.outputs.ecr_uri }}:${{ github.sha }}" ./backend
+          docker push "${{ steps.stack.outputs.ecr_uri }}:${{ github.sha }}"
+          docker tag "${{ steps.stack.outputs.ecr_uri }}:${{ github.sha }}" "${{ steps.stack.outputs.ecr_uri }}:latest"
+          docker push "${{ steps.stack.outputs.ecr_uri }}:latest"
+
+      - name: Roll ECS service
+        run: |
+          aws ecs update-service \
+            --cluster "${{ steps.stack.outputs.cluster }}" \
+            --service "${{ steps.stack.outputs.service }}" \
+            --force-new-deployment
+          aws ecs wait services-stable \
+            --cluster "${{ steps.stack.outputs.cluster }}" \
+            --services "${{ steps.stack.outputs.service }}"

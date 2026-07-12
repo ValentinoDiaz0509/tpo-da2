@@ -46,17 +46,22 @@ spring:
 
 aws:
   sqs:
-    admission-queue: admission-events-queue
-    admission-queue-url: http://localhost:4566/000000000000/admission-events-queue
-    endpoint: http://localhost:4566
-    region: us-east-1
-    enabled: true
+    admission-queue: ${AWS_SQS_ADMISSION_QUEUE:admission-events-queue}
+    admission-queue-url: ${AWS_SQS_ADMISSION_QUEUE_URL:http://localhost:4566/000000000000/admission-events-queue}
+    endpoint: ${AWS_SQS_ENDPOINT:}
+    region: ${AWS_REGION:us-east-1}
+    enabled: ${AWS_SQS_ENABLED:true}
 
 healthgrid:
   module6:
     webhook:
       url: ${MODULE6_WEBHOOK_URL:http://localhost:8086/webhooks/monitoreo/alerta-emergencia}
-      enabled: true
+      alerta-emergencia:
+        url: ${MODULE6_WEBHOOK_ALERTA_EMERGENCIA_URL:${MODULE6_WEBHOOK_URL:http://localhost:8086/webhooks/monitoreo/alerta-emergencia}}
+      alerta-resuelta:
+        url: ${MODULE6_WEBHOOK_ALERTA_RESUELTA_URL:http://localhost:8086/webhooks/monitoreo/alerta-resuelta}
+      token: ${MODULE6_WEBHOOK_TOKEN:mock-jwt-token-for-m6}
+      enabled: ${MODULE6_WEBHOOK_ENABLED:true}
   module10:
     core:
       url: ${MODULE10_CORE_URL:http://localhost:8081}
@@ -111,8 +116,12 @@ management:
         enabled: true
 
 simulator:
-  enabled: true
-  rate: 3000
+  enabled: ${SIMULATOR_ENABLED:true}
+  rate: ${SIMULATOR_RATE:3000}
+
+app:
+  cors:
+    allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:8080,http://localhost:5173,http://127.0.0.1:5173,https://*.cloudfront.net}
 
 logging:
   level:
