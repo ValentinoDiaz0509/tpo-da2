@@ -47,6 +47,7 @@ interface PatientDetailState {
   telemetry: CurrentTelemetry;
   chartData: ChartPoint[];
   loading: boolean;
+  emergencyLoading: boolean;
   error: string | null;
 }
 
@@ -67,6 +68,7 @@ const initialState: PatientDetailState = {
   telemetry: defaultTelemetry,
   chartData: [],
   loading: false,
+  emergencyLoading: false,
   error: null,
 };
 
@@ -127,6 +129,20 @@ export const acknowledgeAlertInDetail = createAsyncThunk(
         { method: 'PATCH' },
       );
       return alertId;
+    } catch (error) {
+      return rejectWithValue((error as Error).message);
+    }
+  },
+);
+
+export const triggerEmergency = createAsyncThunk(
+  'patientDetail/triggerEmergency',
+  async (id: string, { rejectWithValue, dispatch }) => {
+    try {
+      await apiFetch(`/alerts/patient/${id}/emergency`, { method: 'POST' });
+      // Refresh alerts after triggering emergency
+      void dispatch(fetchPatientAlerts(id));
+      return true;
     } catch (error) {
       return rejectWithValue((error as Error).message);
     }
@@ -213,6 +229,16 @@ const patientDetailSlice = createSlice({
         state.alerts = state.alerts.map((a) =>
           a.id === alertId ? { ...a, acknowledged: true } : a,
         );
+      })
+      .addCase(triggerEmergency.pending, (state) => {
+        state.emergencyLoading = true;
+      })
+      .addCase(triggerEmergency.fulfilled, (state) => {
+        state.emergencyLoading = false;
+      })
+      .addCase(triggerEmergency.rejected, (state, action) => {
+        state.emergencyLoading = false;
+        state.error = action.payload as string;
       });
   },
 });

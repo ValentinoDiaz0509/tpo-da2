@@ -26,6 +26,7 @@ import {
   fetchPatientTelemetry,
   acknowledgeAlertInDetail,
   clearPatientDetail,
+  triggerEmergency,
 } from '../store/slices/patientDetailSlice';
 import { wsConnectDetail, wsDisconnect } from '../store/middleware/websocketMiddleware';
 import VitalCard from '../components/VitalCard';
@@ -36,7 +37,7 @@ const DATA_REFRESH_INTERVAL_MS = 5000;
 const PatientDetail = () => {
   const { id } = useParams<{ id: string }>();
   const dispatch = useAppDispatch();
-  const { patient, telemetry, chartData, alerts, loading } = useAppSelector(
+  const { patient, telemetry, chartData, alerts, loading, emergencyLoading } = useAppSelector(
     (s) => s.patientDetail,
   );
 
@@ -132,8 +133,17 @@ const PatientDetail = () => {
             </Typography>
           </Box>
         </Box>
-        <Button variant="contained" color="error" size="small" sx={{ whiteSpace: 'nowrap' }}>
-          Solicitar Intervención de Emergencia
+        <Button
+          variant="contained"
+          color="error"
+          size="small"
+          sx={{ whiteSpace: 'nowrap' }}
+          onClick={() => {
+            if (id) void dispatch(triggerEmergency(id));
+          }}
+          disabled={emergencyLoading}
+        >
+          {emergencyLoading ? 'Solicitando...' : 'Solicitar Intervención de Emergencia'}
         </Button>
       </Paper>
 
