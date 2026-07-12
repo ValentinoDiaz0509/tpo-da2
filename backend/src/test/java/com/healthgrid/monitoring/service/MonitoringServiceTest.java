@@ -27,7 +27,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -83,10 +82,10 @@ class MonitoringServiceTest {
             PageRequest.of(0, 2),
             3);
 
-        when(patientRepository.findFilteredSortedBySeverity(isNull(), any(Pageable.class))).thenReturn(page);
+        when(patientRepository.findAllSortedBySeverity(any(Pageable.class))).thenReturn(page);
         when(telemetryReadingRepository.findLatestReadingsForPatients(any())).thenReturn(List.of());
         when(alertRepository.findByPatientInAndAcknowledgedFalse(any())).thenReturn(List.of());
-        when(patientRepository.findPatientSeverityRanks(isNull())).thenReturn(List.of(
+        when(patientRepository.findAllPatientSeverityRanks()).thenReturn(List.of(
             severityRank(criticalPatient.getId(), 3),
             severityRank(warningPatient.getId(), 2),
             severityRank(normalPatient.getId(), 1)
@@ -145,10 +144,10 @@ class MonitoringServiceTest {
             PageRequest.of(0, 12),
             3);
 
-        when(patientRepository.findFilteredSortedBySeverity(isNull(), any(Pageable.class))).thenReturn(page);
+        when(patientRepository.findAllSortedBySeverity(any(Pageable.class))).thenReturn(page);
         when(telemetryReadingRepository.findLatestReadingsForPatients(any())).thenReturn(List.of());
         when(alertRepository.findByPatientInAndAcknowledgedFalse(any())).thenReturn(List.of());
-        when(patientRepository.findPatientSeverityRanks(isNull())).thenReturn(List.of(
+        when(patientRepository.findAllPatientSeverityRanks()).thenReturn(List.of(
             severityRank(criticalPatient.getId(), 3),
             severityRank(warningPatient.getId(), 2),
             severityRank(normalPatient.getId(), 1)
@@ -168,10 +167,10 @@ class MonitoringServiceTest {
             PageRequest.of(0, 2),
             3);
 
-        when(patientRepository.findFilteredSortedBySeverity(isNull(), any(Pageable.class))).thenReturn(page);
+        when(patientRepository.findAllSortedBySeverity(any(Pageable.class))).thenReturn(page);
         when(telemetryReadingRepository.findLatestReadingsForPatients(any())).thenReturn(List.of());
         when(alertRepository.findByPatientInAndAcknowledgedFalse(any())).thenReturn(List.of());
-        when(patientRepository.findPatientSeverityRanks(isNull())).thenReturn(List.of(
+        when(patientRepository.findAllPatientSeverityRanks()).thenReturn(List.of(
             severityRank(criticalPatient.getId(), 3),
             severityRank(warningPatient.getId(), 2),
             severityRank(normalPatient.getId(), 1)
@@ -195,10 +194,10 @@ class MonitoringServiceTest {
             .acknowledged(false)
             .build();
 
-        when(patientRepository.findFilteredSortedBySeverity(isNull(), any(Pageable.class))).thenReturn(page);
+        when(patientRepository.findAllSortedBySeverity(any(Pageable.class))).thenReturn(page);
         when(telemetryReadingRepository.findLatestReadingsForPatients(any())).thenReturn(List.of());
         when(alertRepository.findByPatientInAndAcknowledgedFalse(any())).thenReturn(List.of(criticalAlert));
-        when(patientRepository.findPatientSeverityRanks(isNull())).thenReturn(List.of(
+        when(patientRepository.findAllPatientSeverityRanks()).thenReturn(List.of(
             severityRank(normalPatient.getId(), 1)
         ));
 
@@ -216,10 +215,10 @@ class MonitoringServiceTest {
             PageRequest.of(0, 12, Sort.by(Sort.Direction.ASC, "name")),
             2);
 
-        when(patientRepository.findFilteredBySearch(isNull(), any(Pageable.class))).thenReturn(page);
+        when(patientRepository.findAll(any(Pageable.class))).thenReturn(page);
         when(telemetryReadingRepository.findLatestReadingsForPatients(any())).thenReturn(List.of());
         when(alertRepository.findByPatientInAndAcknowledgedFalse(any())).thenReturn(List.of());
-        when(patientRepository.findPatientSeverityRanks(isNull())).thenReturn(List.of());
+        when(patientRepository.findAllPatientSeverityRanks()).thenReturn(List.of());
 
         PagedPatientMonitoringResponseDTO response = monitoringService.getPatientMonitoring(
             0, 12, null, "name,asc");
@@ -232,10 +231,10 @@ class MonitoringServiceTest {
     void shouldUseAscendingSeveritySort() {
         Page<Patient> page = new PageImpl<>(List.of(normalPatient), PageRequest.of(0, 12), 1);
 
-        when(patientRepository.findFilteredSortedBySeverityAsc(isNull(), any(Pageable.class))).thenReturn(page);
+        when(patientRepository.findAllSortedBySeverityAsc(any(Pageable.class))).thenReturn(page);
         when(telemetryReadingRepository.findLatestReadingsForPatients(any())).thenReturn(List.of());
         when(alertRepository.findByPatientInAndAcknowledgedFalse(any())).thenReturn(List.of());
-        when(patientRepository.findPatientSeverityRanks(isNull())).thenReturn(List.of(
+        when(patientRepository.findAllPatientSeverityRanks()).thenReturn(List.of(
             severityRank(normalPatient.getId(), 1)
         ));
 

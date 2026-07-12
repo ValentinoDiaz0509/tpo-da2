@@ -90,6 +90,16 @@ public class MonitoringService {
     }
 
     private Page<Patient> resolvePatientPage(String search, String sort, Pageable pageable) {
+        if (search == null) {
+            if (isSeveritySort(sort)) {
+                if (isSortAscending(sort)) {
+                    return patientRepository.findAllSortedBySeverityAsc(pageable);
+                }
+                return patientRepository.findAllSortedBySeverity(pageable);
+            }
+            return patientRepository.findAll(pageable);
+        }
+
         if (isSeveritySort(sort)) {
             if (isSortAscending(sort)) {
                 return patientRepository.findFilteredSortedBySeverityAsc(search, pageable);
@@ -131,7 +141,9 @@ public class MonitoringService {
     }
 
     private HiddenAlertsSummaryDTO buildHiddenAlertsSummary(String search, Set<UUID> visiblePatientIds) {
-        List<PatientSeverityRank> severityRanks = patientRepository.findPatientSeverityRanks(search);
+        List<PatientSeverityRank> severityRanks = search == null
+            ? patientRepository.findAllPatientSeverityRanks()
+            : patientRepository.findPatientSeverityRanks(search);
 
         long criticalCount = 0;
         long warningCount = 0;
