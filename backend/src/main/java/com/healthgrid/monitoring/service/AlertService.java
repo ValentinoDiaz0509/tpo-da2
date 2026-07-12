@@ -59,6 +59,39 @@ public class AlertService {
     }
 
     /**
+     * Trigger a manual emergency intervention for a patient.
+     *
+     * @param patientId the patient ID
+     * @return the created alert DTO
+     */
+    public AlertDTO triggerManualEmergency(UUID patientId) {
+        log.info("Manual emergency triggered for patient ID: {}", patientId);
+        
+        Patient patient = patientRepository.findById(patientId)
+            .orElseThrow(() -> new ApplicationException(ExceptionEnum.PATIENT_NOT_FOUND, patientId.toString()));
+
+        Alert alert = Alert.builder()
+            .patient(patient)
+            .severity(AlertSeverity.CRITICAL)
+            .message("Intervención médica solicitada manualmente")
+            .acknowledged(false)
+            .triggeredAt(LocalDateTime.now())
+            .build();
+
+        Alert savedAlert = alertRepository.save(alert);
+        log.info("Manual emergency alert created with ID: {}", savedAlert.getId());
+        
+        // Notify Module 6 (Internación) via event publisher
+        try {
+            eventPublisherService.publishCriticalAlertEvent(savedAlert, null);
+        } catch (Exception e) {
+            log.error("Failed to notify Module 6 about manual emergency alert", e);
+        }
+        
+        return convertToDTO(savedAlert);
+    }
+
+    /**
      * Get alert by ID.
      *
      * @param id the alert UUID

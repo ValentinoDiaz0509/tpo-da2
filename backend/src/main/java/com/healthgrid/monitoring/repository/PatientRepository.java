@@ -97,7 +97,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
         ORDER BY COALESCE(MAX(CASE a.severity
             WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
             WHEN com.healthgrid.monitoring.model.AlertSeverity.WARNING THEN 2
-            ELSE 1 END),
+            ELSE NULL END),
             CASE p.status
             WHEN com.healthgrid.monitoring.model.PatientStatus.CRITICAL THEN 3
             WHEN com.healthgrid.monitoring.model.PatientStatus.WARNING THEN 2
@@ -122,7 +122,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
         ORDER BY COALESCE(MAX(CASE a.severity
             WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
             WHEN com.healthgrid.monitoring.model.AlertSeverity.WARNING THEN 2
-            ELSE 1 END),
+            ELSE NULL END),
             CASE p.status
             WHEN com.healthgrid.monitoring.model.PatientStatus.CRITICAL THEN 3
             WHEN com.healthgrid.monitoring.model.PatientStatus.WARNING THEN 2
@@ -142,7 +142,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
         COALESCE(MAX(CASE a.severity
             WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
             WHEN com.healthgrid.monitoring.model.AlertSeverity.WARNING THEN 2
-            ELSE 1 END),
+            ELSE NULL END),
             CASE p.status
             WHEN com.healthgrid.monitoring.model.PatientStatus.CRITICAL THEN 3
             WHEN com.healthgrid.monitoring.model.PatientStatus.WARNING THEN 2

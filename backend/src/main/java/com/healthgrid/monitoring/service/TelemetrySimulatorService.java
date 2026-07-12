@@ -63,8 +63,12 @@ public class TelemetrySimulatorService {
                 .metrics(metrics)
                 .build();
 
-            // Directly call the consumer to process it, bypassing real SQS
-            telemetryConsumer.processTelemetryMessage(msg);
+            try {
+                // Directly call the consumer to process it, bypassing real SQS
+                telemetryConsumer.processTelemetryMessage(msg);
+            } catch (Exception e) {
+                log.error("Simulator failed to process telemetry for patient {}", p.getId(), e);
+            }
         }
     }
 

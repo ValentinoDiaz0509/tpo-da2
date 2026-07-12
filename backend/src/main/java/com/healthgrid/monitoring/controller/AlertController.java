@@ -58,6 +58,27 @@ public class AlertController {
     }
 
     /**
+     * Trigger manual emergency for a patient.
+     *
+     * @param patientId the patient UUID
+     * @return created alert response
+     */
+    @PostMapping("/patient/{patientId}/emergency")
+    @Operation(summary = "Trigger manual emergency", description = "Trigger a manual critical emergency alert for a patient")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "201", description = "Emergency alert created successfully",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = AlertDTO.class))),
+        @ApiResponse(responseCode = "404", description = "Patient not found")
+    })
+    public ResponseEntity<AlertDTO> triggerManualEmergency(
+            @Parameter(description = "Patient UUID", required = true)
+            @PathVariable UUID patientId) {
+        log.info("Triggering manual emergency for patient: {}", patientId);
+        AlertDTO created = alertService.triggerManualEmergency(patientId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    /**
      * Get alert by ID.
      *
      * @param id the alert UUID

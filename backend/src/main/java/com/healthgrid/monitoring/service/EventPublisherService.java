@@ -72,7 +72,7 @@ public class EventPublisherService {
                 .alertSeverity(alert.getSeverity().name())
                 .location(patient.getRoom() + "-" + patient.getBed()) // REQUERIDO
                 .triggeredRule(buildRuleDescription(rule)) // REQUERIDO
-                .metricName(rule.getMetricName())
+                .metricName(rule != null ? rule.getMetricName() : "Manual")
                 .metricValue(extractMetricValueFromAlert(alert))
                 .timestamp(alert.getTriggeredAt())
                 .message(alert.getMessage())
@@ -114,10 +114,14 @@ public class EventPublisherService {
             try {
                 Long pId = patient.getExternalId() != null ? Long.valueOf(patient.getExternalId()) : 0L;
                 
+                String obs = rule != null 
+                    ? "Alerta generada por métrica: " + rule.getMetricName() + " valor: " + extractMetricValueFromAlert(alert)
+                    : alert.getMessage();
+                    
                 AlertaEmergenciaRequestDTO webhookPayload = AlertaEmergenciaRequestDTO.builder()
                     .pacienteId(pId)
                     .timestamp(alert.getTriggeredAt())
-                    .observaciones("Alerta generada por métrica: " + rule.getMetricName() + " valor: " + extractMetricValueFromAlert(alert))
+                    .observaciones(obs)
                     .build();
 
                 // 6.a: Publish to M10 Core Event Bus
@@ -204,6 +208,9 @@ public class EventPublisherService {
      * Ejemplo: "heart_rate > 120.0 for 300 seconds"
      */
     private String buildRuleDescription(Rule rule) {
+        if (rule == null) {
+            return "Manual Emergency Intervention";
+        }
         return String.format("%s %s %.1f for %d seconds",
             rule.getMetricName(),
             rule.getOperator(),
@@ -268,9 +275,10 @@ public class EventPublisherService {
      * Genera un ID único para deduplicación FIFO en SQS.
      */
     private String generateDeduplicationId(Alert alert, Rule rule) {
+        String ruleId = rule != null ? String.valueOf(rule.getId()) : "manual";
         return sha256Hex(
             alert.getPatient().getId() + "|" +
-            rule.getId() + "|" + 
+            ruleId + "|" + 
             alert.getTriggeredAt().toString()
         );
     }

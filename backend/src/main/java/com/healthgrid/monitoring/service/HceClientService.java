@@ -36,7 +36,7 @@ public class HceClientService {
      * Gets the full HCE summary for a patient, heavily cached since this changes rarely
      * compared to telemetry frequency.
      */
-    @Cacheable(value = "patientHce", key = "#externalId", unless = "#result == null")
+    @Cacheable(value = "patientHce", key = "#externalId", condition = "#externalId != null and !#externalId.isEmpty()", unless = "#result == null")
     public PatientHceSummaryDTO getPatientHceSummary(String externalId) {
         if (!hceEnabled || externalId == null || externalId.isEmpty()) {
             log.debug("HCE Integration is disabled or externalId is null. Using default thresholds.");
