@@ -1,0 +1,137 @@
+spring:
+  profiles:
+    default: local
+  application:
+    name: patient-monitoring-service
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        use_sql_comments: true
+    show-sql: false
+    open-in-view: false
+  datasource:
+    url: jdbc:postgresql://localhost:5432/monitoring_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      auto-commit: true
+  cloud:
+    stream:
+      bindings:
+        patientEventInput:
+          destination: patient-events-queue
+          group: monitoring-service-group
+          consumer:
+            max-attempts: 3
+            back-off-initial-interval: 1000
+            back-off-max-interval: 10000
+        telemetryEventInput:
+          destination: telemetry-readings-queue
+          group: telemetry-service-group
+          consumer:
+            max-attempts: 3
+            back-off-initial-interval: 1000
+            back-off-max-interval: 10000
+      aws-sqs:
+        auto-create-queue: true
+
+aws:
+  sqs:
+    admission-queue: admission-events-queue
+    admission-queue-url: http://localhost:4566/000000000000/admission-events-queue
+    endpoint: http://localhost:4566
+    region: us-east-1
+    enabled: true
+
+healthgrid:
+  module6:
+    webhook:
+      url: ${MODULE6_WEBHOOK_URL:http://localhost:8086/webhooks/monitoreo/alerta-emergencia}
+      enabled: true
+  module10:
+    core:
+      url: ${MODULE10_CORE_URL:http://localhost:8081}
+      auth:
+        email: ${MODULE10_CORE_EMAIL:cuenta-servicio-m9@healthgrid.com}
+        password: ${MODULE10_CORE_PASSWORD:m9-secret}
+      enabled: true
+  credentials:
+    access-key: test
+    secret-key: test
+
+# Security Configuration - JWT Authentication (Module 10 - Core)
+security:
+  jwt:
+    # Secret key for HS512 signing. For production, use environment variable:
+    # export JWT_SECRET=your-long-and-secure-key-at-least-256-bits
+    secret: ${JWT_SECRET:healthgrid-monitoring-secret-key-module10-issuer-2026-hs512-secure-key-abcdef1234567890}
+    
+    # Token expiration time in milliseconds (default: 24 hours = 86400000 ms)
+    expiration: ${JWT_EXPIRATION:86400000}
+    
+    # Token issuer claim (Module 10 - Core simulates the issuer)
+    issuer: ${JWT_ISSUER:Module10-Core}
+    enabled: true
+  credentials:
+    access-key: test
+    secret-key: test
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    default-property-inclusion: non_null
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+  compression:
+    enabled: true
+    min-response-size: 1024
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    export:
+      simple:
+        enabled: true
+
+simulator:
+  enabled: true
+  rate: 3000
+
+logging:
+  level:
+    root: INFO
+    com.healthgrid.monitoring: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# OpenAPI/Swagger Configuration
+springdoc:
+  api-docs:
+    path: /openapi.json
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    display-request-duration: true
+    groups-order: DESC
+    operations-sorter: method
+    tags-sorter: alpha

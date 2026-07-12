@@ -1,0 +1,280 @@
+{
+  "telemetry_message_examples": [
+    {
+      "description": "Normal vital signs for patient in ICU",
+      "message": {
+        "sensor_id": "SENSOR-ICU-001",
+        "patient_id": "550e8400-e29b-41d4-a716-446655440000",
+        "metrics": {
+          "heart_rate": 75.0,
+          "spo2": 98.5,
+          "systolic_pressure": 118.0,
+          "diastolic_pressure": 78.0,
+          "temperature": 37.1
+        },
+        "unit_metadata": {
+          "unit_id": "UNIT-001",
+          "unit_location": "ICU-Room-101",
+          "device_model": "Philips IntelliVue MP70",
+          "device_serial": "SN-789456",
+          "firmware_version": "2.1.5"
+        }
+      }
+    },
+    {
+      "description": "Elevated heart rate (potential alert)",
+      "message": {
+        "sensor_id": "SENSOR-ICU-002",
+        "patient_id": "660e8400-e29b-41d4-a716-446655440001",
+        "metrics": {
+          "heart_rate": 128.0,
+          "spo2": 97.2,
+          "systolic_pressure": 135.0,
+          "diastolic_pressure": 85.0,
+          "temperature": 37.5
+        },
+        "unit_metadata": {
+          "unit_id": "UNIT-002",
+          "unit_location": "ICU-Room-102",
+          "device_model": "GE CARESCAPE Monitor",
+          "device_serial": "SN-654321",
+          "firmware_version": "1.8.2"
+        }
+      }
+    },
+    {
+      "description": "Low oxygen saturation (critical alert)",
+      "message": {
+        "sensor_id": "SENSOR-ICU-003",
+        "patient_id": "770e8400-e29b-41d4-a716-446655440002",
+        "metrics": {
+          "heart_rate": 105.0,
+          "spo2": 92.0,
+          "systolic_pressure": 140.0,
+          "diastolic_pressure": 90.0,
+          "temperature": 38.2
+        },
+        "unit_metadata": {
+          "unit_id": "UNIT-003",
+          "unit_location": "Emergency-Room-05",
+          "device_model": "Mindray uPM50",
+          "device_serial": "SN-112233",
+          "firmware_version": "3.0.1"
+        }
+      }
+    },
+    {
+      "description": "Minimum metric values (all low)",
+      "message": {
+        "sensor_id": "SENSOR-WARD-001",
+        "patient_id": "880e8400-e29b-41d4-a716-446655440003",
+        "metrics": {
+          "heart_rate": 58.0,
+          "spo2": 94.5,
+          "systolic_pressure": 88.0,
+          "diastolic_pressure": 58.0,
+          "temperature": 36.2
+        },
+        "unit_metadata": {
+          "unit_id": "UNIT-004",
+          "unit_location": "General-Ward-10",
+          "device_model": "Draeger Infinity SC",
+          "device_serial": "SN-445566",
+          "firmware_version": "2.5.3"
+        }
+      }
+    },
+    {
+      "description": "Elevated temperature (fever detection)",
+      "message": {
+        "sensor_id": "SENSOR-ICU-004",
+        "patient_id": "990e8400-e29b-41d4-a716-446655440004",
+        "metrics": {
+          "heart_rate": 92.0,
+          "spo2": 96.8,
+          "systolic_pressure": 125.0,
+          "diastolic_pressure": 82.0,
+          "temperature": 39.1
+        },
+        "unit_metadata": {
+          "unit_id": "UNIT-005",
+          "unit_location": "ICU-Room-103",
+          "device_model": "Philips IntelliVue MP70",
+          "device_serial": "SN-789789",
+          "firmware_version": "2.1.5"
+        }
+      }
+    }
+  ],
+  "rule_examples": [
+    {
+      "name": "High Heart Rate Critical",
+      "description": "Alert when heart rate exceeds 120 BPM",
+      "rule": {
+        "metricName": "heart_rate",
+        "operator": "GREATER_THAN",
+        "threshold": 120.0,
+        "durationSeconds": 300,
+        "severity": "CRITICAL",
+        "description": "Patient heart rate is critically elevated",
+        "enabled": true
+      }
+    },
+    {
+      "name": "Low Oxygen Saturation",
+      "description": "Alert when SpO2 drops below 94%",
+      "rule": {
+        "metricName": "spo2",
+        "operator": "LESS_THAN",
+        "threshold": 94.0,
+        "durationSeconds": 60,
+        "severity": "CRITICAL",
+        "description": "Patient oxygen saturation is critically low",
+        "enabled": true
+      }
+    },
+    {
+      "name": "High Blood Pressure Warning",
+      "description": "Alert when systolic pressure exceeds 140 mmHg",
+      "rule": {
+        "metricName": "systolic_pressure",
+        "operator": "GREATER_THAN",
+        "threshold": 140.0,
+        "durationSeconds": 600,
+        "severity": "WARNING",
+        "description": "Patient systolic pressure is elevated",
+        "enabled": true
+      }
+    },
+    {
+      "name": "Low Blood Pressure",
+      "description": "Alert when systolic pressure drops below 90 mmHg",
+      "rule": {
+        "metricName": "systolic_pressure",
+        "operator": "LESS_THAN",
+        "threshold": 90.0,
+        "durationSeconds": 120,
+        "severity": "WARNING",
+        "description": "Patient systolic pressure is dangerously low",
+        "enabled": true
+      }
+    },
+    {
+      "name": "Fever Detection",
+      "description": "Alert when temperature exceeds 38.5°C",
+      "rule": {
+        "metricName": "temperature",
+        "operator": "GREATER_THAN",
+        "threshold": 38.5,
+        "durationSeconds": 300,
+        "severity": "WARNING",
+        "description": "Patient has high fever",
+        "enabled": true
+      }
+    },
+    {
+      "name": "Hypothermia Alert",
+      "description": "Alert when temperature drops below 35°C",
+      "rule": {
+        "metricName": "temperature",
+        "operator": "LESS_THAN",
+        "threshold": 35.0,
+        "durationSeconds": 120,
+        "severity": "CRITICAL",
+        "description": "Patient has hypothermia (dangerously low body temperature)",
+        "enabled": true
+      }
+    },
+    {
+      "name": "Bradycardia (Low Heart Rate)",
+      "description": "Alert when heart rate drops below 50 BPM",
+      "rule": {
+        "metricName": "heart_rate",
+        "operator": "LESS_THAN",
+        "threshold": 50.0,
+        "durationSeconds": 180,
+        "severity": "CRITICAL",
+        "description": "Patient has dangerously low heart rate",
+        "enabled": true
+      }
+    },
+    {
+      "name": "Hypertension Stage 2",
+      "description": "Alert when diastolic pressure exceeds 95 mmHg",
+      "rule": {
+        "metricName": "diastolic_pressure",
+        "operator": "GREATER_THAN_OR_EQUAL",
+        "threshold": 95.0,
+        "durationSeconds": 600,
+        "severity": "WARNING",
+        "description": "Patient diastolic pressure indicates stage 2 hypertension",
+        "enabled": true
+      }
+    }
+  ],
+  "expected_alert_scenarios": [
+    {
+      "scenario": "High HR + Rule Violation",
+      "telemetry": {
+        "heart_rate": 135.0,
+        "spo2": 98.0,
+        "systolic_pressure": 130.0,
+        "diastolic_pressure": 85.0,
+        "temperature": 37.0
+      },
+      "triggered_rule": "High Heart Rate Critical",
+      "alert_generated": {
+        "severity": "CRITICAL",
+        "message": "Alert: heart_rate value (135.00) triggered rule violation. Threshold: 120.00, Operator: GREATER_THAN"
+      }
+    },
+    {
+      "scenario": "Low SpO2 + Rule Violation",
+      "telemetry": {
+        "heart_rate": 88.0,
+        "spo2": 92.5,
+        "systolic_pressure": 125.0,
+        "diastolic_pressure": 80.0,
+        "temperature": 37.2
+      },
+      "triggered_rule": "Low Oxygen Saturation",
+      "alert_generated": {
+        "severity": "CRITICAL",
+        "message": "Alert: spo2 value (92.50) triggered rule violation. Threshold: 94.00, Operator: LESS_THAN"
+      }
+    },
+    {
+      "scenario": "Fever + Rule Violation",
+      "telemetry": {
+        "heart_rate": 95.0,
+        "spo2": 97.0,
+        "systolic_pressure": 122.0,
+        "diastolic_pressure": 81.0,
+        "temperature": 39.5
+      },
+      "triggered_rule": "Fever Detection",
+      "alert_generated": {
+        "severity": "WARNING",
+        "message": "Alert: temperature value (39.50) triggered rule violation. Threshold: 38.50, Operator: GREATER_THAN"
+      }
+    },
+    {
+      "scenario": "Multiple Rule Violations",
+      "telemetry": {
+        "heart_rate": 128.0,
+        "spo2": 92.0,
+        "systolic_pressure": 145.0,
+        "diastolic_pressure": 96.0,
+        "temperature": 39.2
+      },
+      "triggered_rules": [
+        "High Heart Rate Critical",
+        "Low Oxygen Saturation",
+        "High Blood Pressure Warning",
+        "Hypertension Stage 2",
+        "Fever Detection"
+      ],
+      "alerts_generated": 5
+    }
+  ]
+}

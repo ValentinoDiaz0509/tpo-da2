@@ -1,0 +1,70 @@
+// Health Grid design tokens — kept in sync with src/theme/theme.ts
+$color-sidebar-bg: #0f3c2b;
+$color-sidebar-active: #17523d;
+$color-bg-main: #f3f5f4;
+$color-bg-card: #ffffff;
+$color-accent-primary: #156d4e;
+$color-accent-red: #cc3333;
+$color-accent-orange: #d97706;
+$color-accent-blue: #2563eb;
+$color-text-dark: #1f2937;
+$color-text-muted: #6b7280;
+$color-text-light: #ffffff;
+$color-text-sidebar-muted: #8aa99c;
+$color-border: #e5e7eb;
+
+$font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+  Helvetica, Arial, sans-serif;
+
+$sidebar-width: 250px;
+$header-height: 70px;
+
+// Reset & base
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: $font-family;
+  background-color: $color-bg-main;
+  color: $color-text-dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+// Recharts tooltips use their own inline styles; keep a thin override
+.recharts-tooltip-wrapper {
+  font-family: $font-family !important;
+  font-size: 0.75rem;
+}
+
+// Thin scrollbar for the main content area
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: $color-bg-main;
+}
+
+::-webkit-scrollbar-thumb {
+  background: $color-border;
+  border-radius: 3px;
+
+  &:hover {
+    background: $color-text-muted;
+  }
+}

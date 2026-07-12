@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-monitoring
+    environment:
+      POSTGRES_DB: monitoring_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - monitoring-network
+
+  localstack:
+    image: localstack/localstack:latest
+    container_name: localstack-monitoring
+    environment:
+      SERVICES: sqs,dynamodb
+      DEBUG: 1
+      DATA_DIR: /tmp/localstack/data
+      DOCKER_HOST: unix:///var/run/docker.sock
+    ports:
+      - "4566:4566"
+      - "4571:4571"
+    volumes:
+      - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      # Auto-runs once LocalStack is ready: creates the DynamoDB telemetry table.
+      - "./localstack-init:/etc/localstack/init/ready.d"
+    networks:
+      - monitoring-network
+    depends_on:
+      - postgres
+
+  wiremock:
+    image: wiremock/wiremock:3.7.0
+    container_name: wiremock-core
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./wiremock:/home/wiremock
+    networks:
+      - monitoring-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  monitoring-network:
+    driver: bridge

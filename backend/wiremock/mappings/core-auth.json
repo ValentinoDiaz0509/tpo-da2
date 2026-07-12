@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "/auth/login",
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.email"
+      },
+      {
+        "matchesJsonPath": "$.password"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization"
+    },
+    "jsonBody": {
+      "token": "eyJraWQiOiJ0ZXN0LWtpZCIsImFsZyI6IlJTMjU2In0.eyJ1c2VyX2lkIjo0MiwicGVybWlzc2lvbnMiOlsiaW50ZXJuYWNpb246d3JpdGUiLCJtb25pdG9yZW86cmVhZCJdLCJpYXQiOjE3ODM3ODAwMDAsImV4cCI6MjA5OTE0MDAwMH0.WEKyO-Z2K_O5vNI-X7kXdGWy0QqWayt_uBqri63drbPd2djF49EikaP0mpQIbhKkl_j_5KM3lITg7wTwDR-7RuZ_Ow6rNZO2itlNSv4plOlx2_69MZ-SLJTj_vKUnYxincpsPdwYZmyne8uDva57cQQC76PiM1EDel8DI0EpSEeQbz7wK6ePa9ETV3ICVhT1fqKy0GUCKIDkPlcqRQNZ4vMX0E4v2sgLqmqMvVmPXsYg4l2s5hreRvFQiHsyeLGbCS20Vdj63LZgz0Z0K3-49ys9E9JBn6bwftjdcRlR0mtKrh_Dw2_TEt3j8jEXxJKJLz5hVtdHKqV9iaadi0Yd0g",
+      "user": {
+        "id": 15,
+        "first_name": "Ana",
+        "last_name": "Perez",
+        "email": "ana@example.com"
+      }
+    }
+  }
+}

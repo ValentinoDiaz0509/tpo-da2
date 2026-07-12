@@ -1,0 +1,37 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:monitoring-test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: false
+  cloud:
+    stream:
+      default-binder: test
+
+aws:
+  sqs:
+    admission-queue: admission-events-queue
+    admission-queue-url: http://localhost:4566/000000000000/admission-events-queue
+    endpoint: http://localhost:4566
+    region: us-east-1
+    enabled: false
+  credentials:
+    access-key: test
+    secret-key: test
+
+security:
+  jwt:
+    secret: healthgrid-monitoring-secret-key-module10-issuer-2026-hs512-secure-key-abcdef1234567890
+    expiration: 86400000
+    issuer: Module10-Core
+
+server:
+  servlet:
+    context-path: /api/v1
