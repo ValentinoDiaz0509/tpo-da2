@@ -5,7 +5,6 @@ import * as ecr from 'aws-cdk-lib/aws-ecr';
 import * as ecs from 'aws-cdk-lib/aws-ecs';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as rds from 'aws-cdk-lib/aws-rds';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as iam from 'aws-cdk-lib/aws-iam';
@@ -66,13 +65,13 @@ export class M9BackendStack extends cdk.Stack {
 
     const ecsSg = new ec2.SecurityGroup(this, 'EcsSg', {
       vpc,
-      description: 'ECS tasks — only the ALB may reach the container.',
+      description: 'ECS tasks - only the ALB may reach the container.',
     });
     ecsSg.addIngressRule(albSg, ec2.Port.tcp(8080));
 
     const rdsSg = new ec2.SecurityGroup(this, 'RdsSg', {
       vpc,
-      description: 'RDS — only ECS tasks may reach Postgres.',
+      description: 'RDS - only ECS tasks may reach Postgres.',
     });
     rdsSg.addIngressRule(ecsSg, ec2.Port.tcp(5432));
 
@@ -131,19 +130,6 @@ export class M9BackendStack extends cdk.Stack {
     });
 
     // -------------------------------------------------------------------------
-    // DynamoDB — telemetry time-series (high write rate, TTL auto-purge)
-    // -------------------------------------------------------------------------
-    const telemetryTable = new dynamodb.Table(this, 'TelemetryTable', {
-      tableName: 'm9-telemetry-readings',
-      partitionKey: { name: 'patient_id', type: dynamodb.AttributeType.STRING },
-      sortKey:      { name: 'recorded_at', type: dynamodb.AttributeType.STRING },
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      timeToLiveAttribute: 'expires_at',
-      removalPolicy: cdk.RemovalPolicy.DESTROY,
-      // PITR off — no need for this in a uni project.
-    });
-
-    // -------------------------------------------------------------------------
     // SQS queues (names match spring.cloud.stream bindings in application.yml)
     // -------------------------------------------------------------------------
     const makeQueue = (id: string, name: string): sqs.Queue => {
@@ -187,7 +173,7 @@ export class M9BackendStack extends cdk.Stack {
     dbSecret.grantRead(executionRole);
     jwtSecret.grantRead(executionRole);
 
-    // IAM — task role (app runtime: SQS + DynamoDB)
+    // IAM — task role (app runtime: SQS)
     const taskRole = new iam.Role(this, 'TaskRole', {
       roleName: 'm9-monitoring-task-role',
       assumedBy: new iam.ServicePrincipal('ecs-tasks.amazonaws.com'),
@@ -196,7 +182,6 @@ export class M9BackendStack extends cdk.Stack {
       q.grantConsumeMessages(taskRole);
       q.grantSendMessages(taskRole);
     }
-    telemetryTable.grantReadWriteData(taskRole);
 
     // -------------------------------------------------------------------------
     // ECS cluster + Fargate task definition
@@ -206,6 +191,8 @@ export class M9BackendStack extends cdk.Stack {
       vpc,
       // Container Insights off — avoids CloudWatch custom-metric charges.
       containerInsightsV2: ecs.ContainerInsights.DISABLED,
+      // Needed to run the service on FARGATE_SPOT (~70% cheaper).
+      enableFargateCapacityProviders: true,
     });
 
     const taskDef = new ecs.FargateTaskDefinition(this, 'TaskDef', {
@@ -230,7 +217,6 @@ export class M9BackendStack extends cdk.Stack {
         AWS_SQS_REGION: this.region,
         AWS_SQS_ENABLED: 'true',
         SIMULATOR_ENABLED: 'false',
-        DYNAMODB_TELEMETRY_TABLE: telemetryTable.tableName,
         MODULE6_WEBHOOK_URL: module6WebhookUrl,
         MODULE6_WEBHOOK_ALERTA_EMERGENCIA_URL: module6WebhookUrl,
         JWT_ISSUER: jwtIssuer,
@@ -295,6 +281,11 @@ export class M9BackendStack extends cdk.Stack {
       cluster,
       taskDefinition: taskDef,
       desiredCount,
+      // Fargate Spot: interruptible (2-min notice) but ~70% cheaper — acceptable
+      // for a university demo. Remove this block to fall back to on-demand.
+      capacityProviderStrategies: [
+        { capacityProvider: 'FARGATE_SPOT', weight: 1 },
+      ],
       assignPublicIp: true,
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       securityGroups: [ecsSg],
@@ -322,6 +313,5 @@ export class M9BackendStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ClusterName', { value: cluster.clusterName });
     new cdk.CfnOutput(this, 'ServiceName', { value: 'm9-monitoring' });
     new cdk.CfnOutput(this, 'DbEndpoint',  { value: database.dbInstanceEndpointAddress });
-    new cdk.CfnOutput(this, 'TelemetryTableName', { value: telemetryTable.tableName });
   }
 }
