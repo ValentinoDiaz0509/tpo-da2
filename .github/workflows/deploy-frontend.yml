@@ -3,10 +3,23 @@ name: Deploy frontend
 on:
   push:
     branches: [main]
+    # Frontend app code, the frontend CDK stack, and the shared CDK entry/config.
+    # Backend-only stack edits (m9-backend-stack.ts) do NOT trigger this.
     paths:
       - "frontend/**"
+      - "infrastructure/cdk/lib/m9-frontend-stack.ts"
+      - "infrastructure/cdk/bin/**"
+      - "infrastructure/cdk/package*.json"
+      - "infrastructure/cdk/cdk.json"
+      - "infrastructure/cdk/tsconfig.json"
       - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
+
+# Never run two frontend deploys at once (a cancelled cdk deploy can leave the
+# stack mid-update); queue instead of cancelling.
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
 
 env:
   AWS_REGION: us-east-1
@@ -23,32 +36,64 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Read stack outputs
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            infrastructure/cdk/package-lock.json
+            frontend/package-lock.json
+
+      # The /api/* CloudFront behavior proxies to the backend ALB, so the frontend
+      # stack needs the ALB DNS name (from the already-deployed M9Backend stack).
+      - name: Read backend ALB domain
+        id: backend
+        run: |
+          backend_url="$(aws cloudformation describe-stacks \
+            --stack-name "$BACKEND_STACK_NAME" \
+            --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerUrl'].OutputValue" \
+            --output text)"
+          # Strip the scheme — CloudFront's HttpOrigin wants a bare DNS name.
+          echo "alb_domain=${backend_url#http://}" >> "$GITHUB_OUTPUT"
+
+      - name: Install CDK dependencies
+        working-directory: infrastructure/cdk
+        run: npm ci
+
+      # Deploy the stack itself (idempotent — a no-op when nothing changed). This
+      # also creates the bucket/distribution on the very first run.
+      - name: CDK deploy frontend stack
+        working-directory: infrastructure/cdk
+        run: |
+          npx cdk deploy "$FRONTEND_STACK_NAME" \
+            --require-approval never \
+            --context albDomainName="${{ steps.backend.outputs.alb_domain }}"
+
+      - name: Read frontend stack outputs
         id: stack
         run: |
-          frontend_outputs="$(aws cloudformation describe-stacks \
+          outputs="$(aws cloudformation describe-stacks \
             --stack-name "$FRONTEND_STACK_NAME" \
             --query 'Stacks[0].Outputs' \
             --output json)"
-          backend_outputs="$(aws cloudformation describe-stacks \
-            --stack-name "$BACKEND_STACK_NAME" \
-            --query 'Stacks[0].Outputs' \
-            --output json)"
+          echo "bucket=$(jq -r '.[] | select(.OutputKey=="BucketName") | .OutputValue' <<< "$outputs")" >> "$GITHUB_OUTPUT"
+          echo "distribution_id=$(jq -r '.[] | select(.OutputKey=="DistributionId") | .OutputValue' <<< "$outputs")" >> "$GITHUB_OUTPUT"
 
-          echo "bucket=$(jq -r '.[] | select(.OutputKey=="BucketName") | .OutputValue' <<< "$frontend_outputs")" >> "$GITHUB_OUTPUT"
-          echo "distribution_id=$(jq -r '.[] | select(.OutputKey=="DistributionId") | .OutputValue' <<< "$frontend_outputs")" >> "$GITHUB_OUTPUT"
-          echo "backend_url=$(jq -r '.[] | select(.OutputKey=="LoadBalancerUrl") | .OutputValue' <<< "$backend_outputs")/api/v1" >> "$GITHUB_OUTPUT"
-
+      # Same-origin: the SPA and the API share the CloudFront domain, so the API
+      # base is a relative path (proxied by the /api/* behavior). No CORS, no
+      # mixed content, no hardcoded backend host.
       - name: Build frontend
         working-directory: frontend
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || steps.stack.outputs.backend_url }}
+          VITE_API_BASE_URL: /api/v1
+          VITE_CORE_API_URL: /api/v1
         run: |
           npm ci
           npm run build

@@ -6,6 +6,9 @@ on:
     paths:
       - "backend/**"
       - "infrastructure/cdk/**"
+      # A frontend-stack-only change must not trigger a full backend rebuild +
+      # ECS roll; the frontend workflow owns that stack.
+      - "!infrastructure/cdk/lib/m9-frontend-stack.ts"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:
 
