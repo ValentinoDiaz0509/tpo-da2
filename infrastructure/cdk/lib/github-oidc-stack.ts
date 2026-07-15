@@ -82,11 +82,33 @@ export class GithubOidcStack extends cdk.Stack {
       ],
     }));
 
-    // Read stack outputs (ECR URI, cluster/service names) in the workflow.
+    // Read stack outputs in the workflows: backend (ECR URI, cluster/service,
+    // ALB URL) and frontend (bucket, distribution id).
     deployRole.addToPolicy(new iam.PolicyStatement({
       sid: 'ReadStackOutputs',
       actions: ['cloudformation:DescribeStacks'],
-      resources: [`arn:aws:cloudformation:${this.region}:${this.account}:stack/M9Backend/*`],
+      resources: [
+        `arn:aws:cloudformation:${this.region}:${this.account}:stack/M9Backend/*`,
+        `arn:aws:cloudformation:${this.region}:${this.account}:stack/M9Frontend/*`,
+      ],
+    }));
+
+    // Publish the built SPA to the frontend bucket (`aws s3 sync --delete`).
+    // The bucket name is CDK-generated from the stack name, so scope by prefix.
+    deployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SyncFrontendBucket',
+      actions: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:DeleteObject'],
+      resources: [
+        `arn:aws:s3:::m9frontend-*`,
+        `arn:aws:s3:::m9frontend-*/*`,
+      ],
+    }));
+
+    // Invalidate the CloudFront cache after each frontend deploy.
+    deployRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'InvalidateFrontendCdn',
+      actions: ['cloudfront:CreateInvalidation'],
+      resources: [`arn:aws:cloudfront::${this.account}:distribution/*`],
     }));
 
     // Roll the ECS service onto the freshly pushed image.
