@@ -6,9 +6,11 @@ import com.healthgrid.monitoring.model.PatientStatus;
 import com.healthgrid.monitoring.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -29,46 +31,65 @@ public class MonitoringAdmissionService {
     public static final String EVENTO_ALTA = "ALTA_MONITOREO";
     public static final String EVENTO_BAJA = "BAJA_MONITOREO";
 
+    /** Core {@code event_type_id} for a monitoring start (alta). Primary signal on the bus path. */
+    @Value("${healthgrid.rabbit.events.alta-id:26}")
+    private Integer altaEventId;
+
+    /** Core {@code event_type_id} for a monitoring stop (baja). Primary signal on the bus path. */
+    @Value("${healthgrid.rabbit.events.baja-id:27}")
+    private Integer bajaEventId;
+
     private final PatientRepository patientRepository;
 
     /**
-     * Dispatches a monitoring event to {@link #alta(Long)} or {@link #baja(Long)}.
+     * Dispatches a monitoring event to {@link #alta(Long, Long)} or {@link #baja(Long, Long)}.
      *
-     * <p>Module 6 publishes two distinct event types (one for alta, one for baja), so the
-     * <b>Core event type name</b> is the primary signal — any name containing {@code "baja"}
-     * is a discharge, {@code "alta"} is an admission. When that is inconclusive (e.g. the legacy
-     * webhook, which has no event type) we fall back to the payload {@code evento} field. If both
-     * are inconclusive we default to alta and log a warning.
+     * <p>Per the Core contract, Module 6 publishes two distinct event types and the numeric
+     * <b>{@code event_type_id}</b> is what distinguishes the operation ({@link #altaEventId} vs
+     * {@link #bajaEventId}). The event type <i>name</i> is a secondary signal (its exact string is
+     * environment-configured), and the payload {@code evento} field is a last-resort fallback for
+     * the legacy webhook path. If all are inconclusive we default to alta and log a warning.
      *
+     * @param eventTypeId   the Core {@code event_type_id} from the envelope, or {@code null}
      * @param eventTypeName the Core {@code event_type_name} from the envelope, or {@code null}
      * @param request       the parsed monitoring payload
      */
-    public void handleEvent(String eventTypeName, MonitoreoWebhookRequestDTO request) {
+    public void handleEvent(Integer eventTypeId, String eventTypeName, MonitoreoWebhookRequestDTO request) {
         if (request == null || request.getPacienteId() == null) {
             log.warn("Ignoring monitoring event without paciente_id: {}", request);
             return;
         }
 
-        if (isBaja(eventTypeName, request.getEvento())) {
+        if (isBaja(eventTypeId, eventTypeName, request.getEvento())) {
             baja(request.getPacienteId(), request.getCamaId());
         } else {
             alta(request.getPacienteId(), request.getCamaId());
         }
     }
 
-    /** Resolves whether an event is a discharge (baja) from the event type name, falling back to the payload field. */
-    private boolean isBaja(String eventTypeName, String eventoField) {
+    /**
+     * Resolves whether an event is a discharge (baja). Primary signal is the numeric
+     * {@code event_type_id}; falls back to the event type name, then the payload {@code evento} field.
+     */
+    private boolean isBaja(Integer eventTypeId, String eventTypeName, String eventoField) {
+        // 1. Primary signal per the Core contract: the numeric event type id.
+        if (eventTypeId != null) {
+            if (Objects.equals(eventTypeId, bajaEventId)) return true;
+            if (Objects.equals(eventTypeId, altaEventId)) return false;
+        }
+
+        // 2. Fallback: event type name substring.
         String type = eventTypeName == null ? "" : eventTypeName.toLowerCase();
         if (type.contains("baja")) return true;
         if (type.contains("alta")) return false;
 
-        // Fallback: legacy single-event / webhook path carries the signal in the payload.
+        // 3. Fallback: legacy single-event / webhook path carries the signal in the payload.
         String evento = eventoField == null ? "" : eventoField.toUpperCase();
         if (evento.contains("BAJA")) return true;
         if (evento.contains("ALTA")) return false;
 
-        log.warn("Could not determine alta/baja from eventType='{}' nor evento='{}'; defaulting to alta",
-                eventTypeName, eventoField);
+        log.warn("Could not determine alta/baja from eventTypeId='{}', eventType='{}' nor evento='{}'; defaulting to alta",
+                eventTypeId, eventTypeName, eventoField);
         return false;
     }
 

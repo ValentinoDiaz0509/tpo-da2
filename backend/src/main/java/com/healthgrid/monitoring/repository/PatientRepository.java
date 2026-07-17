@@ -79,9 +79,20 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
      */
     boolean existsByName(String name);
 
+    /**
+     * List active (non-discharged) patients for the monitoring dashboard.
+     * A BAJA_MONITOREO sets the patient to INACTIVE, which must drop it from the board.
+     */
     @Query("""
         SELECT p FROM Patient p
-        WHERE (:search IS NULL
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
+        """)
+    Page<Patient> findAllActive(Pageable pageable);
+
+    @Query("""
+        SELECT p FROM Patient p
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
+            AND (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
         """)
@@ -90,6 +101,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     @Query(value = """
         SELECT p FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
         GROUP BY p
         ORDER BY COALESCE(MAX(CASE a.severity
             WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
@@ -103,13 +115,15 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
         """,
         countQuery = """
         SELECT COUNT(p) FROM Patient p
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
         """)
     Page<Patient> findAllSortedBySeverity(Pageable pageable);
 
     @Query(value = """
         SELECT p FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
-        WHERE (:search IS NULL
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
+            AND (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
         GROUP BY p
@@ -125,7 +139,8 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
         """,
         countQuery = """
         SELECT COUNT(p) FROM Patient p
-        WHERE (:search IS NULL
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
+            AND (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
         """)
@@ -134,6 +149,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
     @Query(value = """
         SELECT p FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
         GROUP BY p
         ORDER BY COALESCE(MAX(CASE a.severity
             WHEN com.healthgrid.monitoring.model.AlertSeverity.CRITICAL THEN 3
@@ -147,13 +163,15 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
         """,
         countQuery = """
         SELECT COUNT(p) FROM Patient p
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
         """)
     Page<Patient> findAllSortedBySeverityAsc(Pageable pageable);
 
     @Query(value = """
         SELECT p FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
-        WHERE (:search IS NULL
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
+            AND (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
         GROUP BY p
@@ -169,7 +187,8 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
         """,
         countQuery = """
         SELECT COUNT(p) FROM Patient p
-        WHERE (:search IS NULL
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
+            AND (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
         """)
@@ -187,6 +206,7 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
             ELSE 1 END) AS severityRank
         FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
         GROUP BY p.id, p.status
         """)
     List<PatientSeverityRank> findAllPatientSeverityRanks();
@@ -203,7 +223,8 @@ public interface PatientRepository extends JpaRepository<Patient, UUID> {
             ELSE 1 END) AS severityRank
         FROM Patient p
         LEFT JOIN p.alerts a ON a.acknowledged = false
-        WHERE (:search IS NULL
+        WHERE p.status <> com.healthgrid.monitoring.model.PatientStatus.INACTIVE
+            AND (:search IS NULL
             OR LOWER(p.name) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(p.bed) LIKE LOWER(CONCAT('%', :search, '%')))
         GROUP BY p.id, p.status

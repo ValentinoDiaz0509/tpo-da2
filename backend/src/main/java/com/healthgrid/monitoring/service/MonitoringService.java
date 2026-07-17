@@ -98,7 +98,7 @@ public class MonitoringService {
                 }
                 return patientRepository.findAllSortedBySeverity(pageable);
             }
-            return patientRepository.findAll(pageable);
+            return patientRepository.findAllActive(pageable);
         }
 
         if (isSeveritySort(sort)) {

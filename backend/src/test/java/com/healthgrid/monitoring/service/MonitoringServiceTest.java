@@ -215,7 +215,7 @@ class MonitoringServiceTest {
             PageRequest.of(0, 12, Sort.by(Sort.Direction.ASC, "name")),
             2);
 
-        when(patientRepository.findAll(any(Pageable.class))).thenReturn(page);
+        when(patientRepository.findAllActive(any(Pageable.class))).thenReturn(page);
         when(telemetryReadingRepository.findLatestReadingsForPatients(any())).thenReturn(List.of());
         when(alertRepository.findByPatientInAndAcknowledgedFalse(any())).thenReturn(List.of());
         when(patientRepository.findAllPatientSeverityRanks()).thenReturn(List.of());

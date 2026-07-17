@@ -45,6 +45,11 @@ healthgrid:
     # Consumo del bus de eventos del Core (M10). El listener escucha esta cola en RabbitMQ.
     enabled: ${HEALTHGRID_RABBIT_ENABLED:true}
     monitoring-queue: ${HEALTHGRID_RABBIT_MONITORING_QUEUE:monitoring.requests}
+    # event_type_id de los eventos entrantes de M6 (Internación). El TIPO distingue la operación:
+    # ALTA = inicio de monitoreo, BAJA = fin de monitoreo (el paciente sale del tablero).
+    events:
+      alta-id: ${HEALTHGRID_EVENT_ALTA_ID:26}   # monitoring.alta.requested
+      baja-id: ${HEALTHGRID_EVENT_BAJA_ID:27}   # monitoring.baja.requested
   module1:
     hce:
       url: ${MODULE1_HCE_URL:http://localhost:8082}

@@ -50,9 +50,10 @@ public class AdmissionEventListener {
                 admission.getPacienteId(), admission.getEvento());
 
         try {
-            // 3. Process. The event type (alta vs baja) is the primary signal; the payload
-            //    evento field is a fallback. Idempotent create/reactivate/suspend by external id.
-            admissionService.handleEvent(envelope.getEventTypeName(), admission);
+            // 3. Process. The numeric event_type_id (alta vs baja) is the primary signal; the
+            //    event name and payload evento field are fallbacks. Idempotent create/reactivate/
+            //    suspend by external id.
+            admissionService.handleEvent(envelope.getEventTypeId(), envelope.getEventTypeName(), admission);
         } catch (Exception e) {
             // Business/infra failure: let the container's retry policy run, then route to the DLQ.
             log.error("Failed to process monitoring event for paciente_id={}", admission.getPacienteId(), e);
