@@ -47,7 +47,18 @@ public class SecurityConfig {
             .and()
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints (no auth required)
-                .requestMatchers("/swagger-ui**", "/v3/api-docs/**", "/health", "/actuator/**").permitAll()
+                .requestMatchers(
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                    "/openapi.json",
+                    "/openapi.json/**",
+                    "/openapi/**",
+                    "/v3/api-docs",
+                    "/v3/api-docs/**",
+                    "/v3/api-docs/swagger-config",
+                    "/health",
+                    "/actuator/**"
+                ).permitAll()
                 .requestMatchers("/auth/**").permitAll()  // Auth endpoints
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/ws").permitAll()

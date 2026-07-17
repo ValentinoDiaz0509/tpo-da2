@@ -175,6 +175,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String path = getPathWithoutContext(request);
 
         return path.startsWith("/swagger-ui") ||
+               path.startsWith("/swagger-config") ||
+               path.startsWith("/openapi") ||
                path.startsWith("/v3/api-docs") ||
                path.startsWith("/health") ||
                path.startsWith("/actuator") ||
