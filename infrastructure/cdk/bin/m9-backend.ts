@@ -36,14 +36,19 @@ const oidc = new GithubOidcStack(app, 'GithubOidc', {
   description: 'GitHub Actions OIDC provider + deploy role (no long-lived keys).',
 });
 
-// Cost-tracking tags (backend stacks only — frontend is out of scope).
-for (const stack of [backend, oidc]) {
+const frontend = new M9FrontendStack(app, 'M9Frontend', {
+  env,
+  // CloudFront is a global service; the bucket is created in the configured region.
+  // ALB DNS name for the /api/* proxy origin — supplied at deploy time via
+  // `--context albDomainName=<dns>` from the M9Backend LoadBalancerUrl output
+  // (see deploy-frontend.yml). Absent on a bare synth; the stack falls back to a
+  // placeholder so synth still works.
+  albDomainName: app.node.tryGetContext('albDomainName'),
+  description: 'Módulo 9 (Monitoreo) frontend — S3 + CloudFront SPA hosting.',
+});
+
+// Cost-tracking tags — applied to every stack for consistent billing/cleanup.
+for (const stack of [backend, oidc, frontend]) {
   cdk.Tags.of(stack).add('project', 'm9');
   cdk.Tags.of(stack).add('env', 'university');
 }
-
-new M9FrontendStack(app, 'M9Frontend', {
-  env,
-  // CloudFront is a global service; the bucket is created in the configured region.
-  description: 'Módulo 9 (Monitoreo) frontend — S3 + CloudFront SPA hosting.',
-});

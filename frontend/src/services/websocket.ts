@@ -1,10 +1,14 @@
 import { Client, StompSubscription } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 
-const WS_URL =
-  import.meta.env.VITE_API_BASE_URL
-    ? `${import.meta.env.VITE_API_BASE_URL}/ws`
-    : 'http://localhost:8080/api/v1/ws';
+// SockJS requires an absolute URL. In prod VITE_API_BASE_URL is a same-origin
+// relative path (e.g. "/api/v1", proxied to the backend by CloudFront), so make
+// it absolute against the current origin; a full http(s) base is used as-is.
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api/v1';
+const ABSOLUTE_API_BASE = /^https?:\/\//.test(API_BASE)
+  ? API_BASE
+  : `${window.location.origin}${API_BASE}`;
+const WS_URL = `${ABSOLUTE_API_BASE}/ws`;
 
 export type WsMessageCallback = (data: unknown) => void;
 
