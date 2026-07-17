@@ -221,6 +221,7 @@ export class M9BackendStack extends cdk.Stack {
         SIMULATOR_ENABLED: 'false',
         MODULE6_WEBHOOK_URL: module6WebhookUrl,
         MODULE6_WEBHOOK_ALERTA_EMERGENCIA_URL: module6WebhookUrl,
+        MODULE10_CORE_URL: 'https://api.healthcare.cantero.ar',
         JWT_ISSUER: jwtIssuer,
         JWT_EXPIRATION: '86400000',
         APP_FRONTEND_BASE_URL: frontendBaseUrl,
