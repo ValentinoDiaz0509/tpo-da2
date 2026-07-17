@@ -103,6 +103,13 @@ export class M9BackendStack extends cdk.Stack {
       },
     });
 
+    // AMQP credentials for the M10 Core RabbitMQ broker (created out-of-band via
+    // `aws secretsmanager create-secret --name m9/rabbitmq-credentials`, not by CDK,
+    // since these are pre-assigned by the Core team rather than generated here).
+    const rabbitSecret = secretsmanager.Secret.fromSecretNameV2(
+      this, 'RabbitSecret', 'm9/rabbitmq-credentials',
+    );
+
     // -------------------------------------------------------------------------
     // RDS PostgreSQL (patients, rules, alerts)
     // -------------------------------------------------------------------------
@@ -170,6 +177,7 @@ export class M9BackendStack extends cdk.Stack {
       ],
     });
     dbSecret.grantRead(executionRole);
+    rabbitSecret.grantRead(executionRole);
 
     // IAM — task role (app runtime: SQS)
     const taskRole = new iam.Role(this, 'TaskRole', {
@@ -227,6 +235,9 @@ export class M9BackendStack extends cdk.Stack {
       },
       secrets: {
         SPRING_DATASOURCE_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, 'password'),
+        RABBITMQ_HOST: ecs.Secret.fromSecretsManager(rabbitSecret, 'host'),
+        RABBITMQ_USER: ecs.Secret.fromSecretsManager(rabbitSecret, 'username'),
+        RABBITMQ_PASSWORD: ecs.Secret.fromSecretsManager(rabbitSecret, 'password'),
       },
       portMappings: [{ containerPort: 8080 }],
       healthCheck: {
