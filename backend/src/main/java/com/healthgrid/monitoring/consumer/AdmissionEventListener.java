@@ -45,13 +45,14 @@ public class AdmissionEventListener {
             throw new AmqpRejectAndDontRequeueException("Unparseable Core event", e);
         }
 
-        log.info("Received Core event '{}' (id={}) from {} → evento={}, paciente_id={}",
+        log.info("Received Core event '{}' (id={}) from {} → paciente_id={} (payload evento={})",
                 envelope.getEventTypeName(), envelope.getEventTypeId(), envelope.getPublisherModule(),
-                admission.getEvento(), admission.getPacienteId());
+                admission.getPacienteId(), admission.getEvento());
 
         try {
-            // 3. Process (idempotent create/reactivate/suspend keyed by external patient id)
-            admissionService.handleEvent(admission);
+            // 3. Process. The event type (alta vs baja) is the primary signal; the payload
+            //    evento field is a fallback. Idempotent create/reactivate/suspend by external id.
+            admissionService.handleEvent(envelope.getEventTypeName(), admission);
         } catch (Exception e) {
             // Business/infra failure: let the container's retry policy run, then route to the DLQ.
             log.error("Failed to process monitoring event for paciente_id={}", admission.getPacienteId(), e);
