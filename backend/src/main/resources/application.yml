@@ -24,35 +24,27 @@ spring:
       connection-timeout: 20000
       idle-timeout: 300000
       auto-commit: true
-  cloud:
-    stream:
-      bindings:
-        patientEventInput:
-          destination: patient-events-queue
-          group: monitoring-service-group
-          consumer:
-            max-attempts: 3
-            back-off-initial-interval: 1000
-            back-off-max-interval: 10000
-        telemetryEventInput:
-          destination: telemetry-readings-queue
-          group: telemetry-service-group
-          consumer:
-            max-attempts: 3
-            back-off-initial-interval: 1000
-            back-off-max-interval: 10000
-      aws-sqs:
-        auto-create-queue: true
-
-aws:
-  sqs:
-    admission-queue: ${AWS_SQS_ADMISSION_QUEUE:admission-events-queue}
-    admission-queue-url: ${AWS_SQS_ADMISSION_QUEUE_URL:http://localhost:4566/000000000000/admission-events-queue}
-    endpoint: ${AWS_SQS_ENDPOINT:}
-    region: ${AWS_REGION:us-east-1}
-    enabled: ${AWS_SQS_ENABLED:true}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:queue.healthgrid.cantero.ar}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:}
+    password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        # Requeue rejected messages onto the DLQ created by the Core, not back to the main queue
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000
+          max-interval: 10000
 
 healthgrid:
+  rabbit:
+    # Consumo del bus de eventos del Core (M10). El listener escucha esta cola en RabbitMQ.
+    enabled: ${HEALTHGRID_RABBIT_ENABLED:true}
+    monitoring-queue: ${HEALTHGRID_RABBIT_MONITORING_QUEUE:monitoring.requests}
   module6:
     webhook:
       url: ${MODULE6_WEBHOOK_URL:http://localhost:8086/webhooks/monitoreo/alerta-emergencia}
@@ -64,14 +56,15 @@ healthgrid:
       enabled: ${MODULE6_WEBHOOK_ENABLED:true}
   module10:
     core:
-      url: ${MODULE10_CORE_URL:http://localhost:8081}
+      url: ${MODULE10_CORE_URL:https://api.healthcare.cantero.ar}
       auth:
-        email: ${MODULE10_CORE_EMAIL:cuenta-servicio-m9@healthgrid.com}
-        password: ${MODULE10_CORE_PASSWORD:m9-secret}
-      enabled: true
-  credentials:
-    access-key: test
-    secret-key: test
+        email: ${MODULE10_CORE_EMAIL:}
+        password: ${MODULE10_CORE_PASSWORD:}
+      enabled: ${MODULE10_CORE_ENABLED:true}
+      # event_type_id de los eventos hacia M6 (ver docs/architecture/shared_docs/M6_INTEGRACION_M9_MONITOREO)
+      events:
+        alerta-emergencia-id: ${MODULE10_EVENT_ALERTA_EMERGENCIA_ID:16}   # internacion.alerta-emergencia.detectada
+        alerta-resuelta-id: ${MODULE10_EVENT_ALERTA_RESUELTA_ID:17}       # internacion.alerta-resuelta.notificada
 
 server:
   port: 8080

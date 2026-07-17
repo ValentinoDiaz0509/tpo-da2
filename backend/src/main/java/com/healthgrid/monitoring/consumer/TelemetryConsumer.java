@@ -9,8 +9,6 @@ import com.healthgrid.monitoring.service.RuleEngineService;
 import com.healthgrid.monitoring.service.TelemetryReadingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
@@ -21,30 +19,28 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.function.Consumer;
 
+/**
+ * Processes telemetry readings and runs the rule engine.
+ *
+ * Telemetry is an internal, high-frequency stream: it does NOT flow through the M10 Core
+ * event bus. Readings are produced by {@code TelemetrySimulatorService} (or, in production,
+ * by an in-process sensor ingestion path) and handed straight to {@link #processTelemetryMessage}.
+ * Only the resulting alerts are published outward via the Core bus.
+ */
 @Component
 @Slf4j
 @RequiredArgsConstructor
 public class TelemetryConsumer {
-    
-    // TODO(core): adaptar este consumer al contrato de eventos/routing definido por Core.
+
     private final TelemetryReadingService telemetryReadingService;
     private final RuleEngineService ruleEngineService;
     private final TelemetryReadingRepository telemetryReadingRepository;
-    
-    /**
-     * Consumidor de mensajes de telemetría desde AWS SQS.
-     * Implementa IDEMPOTENCIA usando hash del payload.
-     */
-    @Bean
-    @ConditionalOnProperty(name = "aws.sqs.enabled", havingValue = "true", matchIfMissing = true)
-    public Consumer<TelemetryMessageDTO> telemetryEventInput() {
-        return this::processTelemetryMessage;
-    }
 
+    /**
+     * Processes a single telemetry reading. Implements IDEMPOTENCIA using a hash of the payload.
+     */
     public void processTelemetryMessage(TelemetryMessageDTO telemetryMessage) {
-        // TODO(core): revisar nombre de binding, origen de eventos y esquema del mensaje cuando Core intermedie colas.
         try {
             log.info("Received telemetry message from sensor: {} for patient: {}",
                 telemetryMessage.getSensorId(),

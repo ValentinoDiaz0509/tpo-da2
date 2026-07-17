@@ -1,5 +1,7 @@
 # Flujo de Ingesta de Telemetría - Diagrama de Arquitectura
 
+> **La telemetría es interna.** No pasa por el bus de eventos del Core ni por ninguna cola externa: es un stream de alta frecuencia que se procesa dentro del mismo proceso. Hoy lo alimenta `TelemetrySimulatorService` (`@Scheduled`); en producción sería una ruta de ingesta in-process equivalente. Solo las **alertas** resultantes salen hacia otros módulos (ver `BIG_PICTURE_ARCHITECTURE.md`).
+
 ## 1. FLUJO GENERAL DE DATOS
 
 ```
@@ -12,19 +14,18 @@
               │ (TelemetryMessageDTO)
               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   AWS SQS Service                               │
-│          (telemetry-readings-queue)                             │
-│  [Queue: IoT → Hospital Monitoring Service]                     │
+│         TelemetrySimulatorService  (@Scheduled, cada 3 s)       │
+│         [o ruta de ingesta in-process en producción]            │
 └─────────────┬──────────────────────────────────────────────────┘
               │
-              │ Spring Cloud Stream Consumer
+              │ processTelemetryMessage() — llamada directa (sin broker)
               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │            PATIENT MONITORING SERVICE                           │
 │          (Spring Boot 3.3 Application)                          │
 │                                                                 │
 │  ┌─────────────────────────────────────────┐                  │
-│  │  TelemetryConsumer.telemetryEventInput  │                  │
+│  │  TelemetryConsumer.processTelemetryMessage │               │
 │  │  - Deserialize message                  │                  │
 │  │  - Convert to DTO                       │                  │
 │  │  - Call services                        │                  │
@@ -90,32 +91,17 @@ IoT Sensor publishes:
 │  }                                     │
 └─────────────┬──────────────────────────┘
               │
-              │ Send to SQS
-              ▼
-    AWS SQS Queue (telemetry-readings-queue)
-              │
-              │ Spring Cloud Stream Binding
-              │ spring:
-              │   cloud:
-              │     stream:
-              │       bindings:
-              │         telemetryEventInput:
-              │           destination: telemetry-readings-queue
-              │           group: telemetry-service-group
-              │
+              │ processTelemetryMessage(msg) — llamada directa in-process
               ▼
 ┌──────────────────────────────────────────────────────┐
-│  @Bean                                               │
-│  public Consumer<TelemetryMessageDTO>               │
-│         telemetryEventInput()                       │
+│  public void processTelemetryMessage(               │
+│         TelemetryMessageDTO telemetryMessage)       │
 │  {                                                   │
-│    return telemetryMessage -> {                     │
-│      // 1. Deserialize                             │
+│      // 1. Fingerprint / idempotencia             │
 │      // 2. Convert                                 │
-│      // 3. Save                                    │
-│      // 4. Evaluate                                │
+│      // 3. Save (Postgres)                         │
+│      // 4. Evaluate rules                          │
 │      // 5. Generate Alerts                         │
-│    };                                               │
 │  }                                                   │
 └──────────────────────────────────────────────────────┘
 ```
@@ -280,11 +266,11 @@ SCENARIO: Patient with HR > 120 Rule triggers alert
 
 TIME 0s:
   ┌─ IoT Monitor records HR = 135 BPM
-  └─ Publishes to AWS SQS
+  └─ Reading enters the in-process ingestion path
 
 TIME 1s:
-  ┌─ Message arrives in queue
-  └─ TelemetryConsumer receives it
+  ┌─ processTelemetryMessage(msg) is invoked
+  └─ TelemetryConsumer processes it
 
 TIME 2s:
   ┌─ Message deserialized to TelemetryMessageDTO
@@ -415,7 +401,7 @@ METRICS TO MONITOR:
   ✓ Processing latency (P50, P95, P99)
   ✓ Error rate per 1000 messages
   ✓ Database connection pool status
-  ✓ SQS queue depth
+  ✓ RabbitMQ monitoring.requests depth (admission events)
 ```
 
 ## 11. CHECKLIST DE IMPLEMENTACIÓN
@@ -424,15 +410,15 @@ METRICS TO MONITOR:
 ✓ TelemetryMessageDTO - JSON deserialization
 ✓ TelemetryMetricsDTO - Vital signs container
 ✓ UnitMetadataDTO - Device metadata
-✓ TelemetryConsumer - SQS message listener
+✓ TelemetryConsumer - in-process telemetry processor
 ✓ HealthRuleEvaluationService - Rule evaluation engine
-✓ TelemetryReadingService - Persistence layer
+✓ TelemetryReadingService - Persistence layer (Postgres)
 ✓ TelemetryReadingController - REST API
 ✓ RuleController - Rule management API
 ✓ AlertController - Alert management API
 ✓ Database schema - Tables & indexes
-✓ Spring Cloud Stream configuration
-✓ AWS SQS binding configuration
+✓ TelemetrySimulatorService - scheduled telemetry source
+✓ Idempotencia por fingerprint del mensaje
 ✓ Error handling & logging
 ✓ Documentation & examples
 ```

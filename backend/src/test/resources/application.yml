@@ -11,20 +11,20 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.H2Dialect
     show-sql: false
-  cloud:
-    stream:
-      default-binder: test
 
-aws:
-  sqs:
-    admission-queue: admission-events-queue
-    admission-queue-url: http://localhost:4566/000000000000/admission-events-queue
-    endpoint: http://localhost:4566
-    region: us-east-1
+# No external messaging in tests: don't start the RabbitMQ listener and don't call the Core.
+healthgrid:
+  rabbit:
     enabled: false
-  credentials:
-    access-key: test
-    secret-key: test
+  module10:
+    core:
+      enabled: false
+  module6:
+    webhook:
+      enabled: false
+
+simulator:
+  enabled: false
 
 server:
   servlet:

@@ -22,10 +22,10 @@ There is no root build script. Each app builds independently from its own direct
 ### Backend (run from `backend/`)
 
 ```bash
-docker-compose up -d                  # PostgreSQL (5432) + LocalStack SQS (4566)
+docker-compose up -d                  # PostgreSQL (5432) + RabbitMQ (5672, UI 15672) + WireMock Core (8081)
 mvn spring-boot:run                   # Run app (port 8080, context path /api/v1)
 mvn clean package                     # Build jar at target/monitoring-service-1.0.0.jar
-mvn test                              # All tests (uses H2 + test SQS binder, no docker needed)
+mvn test                              # All tests (H2, messaging disabled — no docker needed)
 mvn test -Dtest=PatientServiceTest    # Single test class
 mvn test -Dtest=PatientServiceTest#methodName   # Single test method
 mvn spring-boot:run -Dspring-boot.run.arguments="--spring.profiles.active=dev"
@@ -54,14 +54,14 @@ Single Spring Boot module organized by package role under `com.healthgrid.monito
 ### Three input paths feed the same domain
 
 1. **REST controllers** (`controller/`) — CRUD for patients, rules, alerts, telemetry, plus the dashboard aggregator `MonitoringController` at `GET /patients/monitoring` and the webhook receiver `InternacionWebhookController`.
-2. **SQS consumers** (`consumer/`) — `PatientEventConsumer` and `TelemetryConsumer` are Spring Cloud Stream `Consumer<>` beans bound via `application.yml` (`spring.cloud.stream.bindings.patientEventInput` → `patient-events-queue`, `telemetryEventInput` → `telemetry-readings-queue`). In local dev these resolve to LocalStack SQS at `http://localhost:4566`.
-3. **Telemetry simulator** (`service/TelemetrySimulatorService`) — `@Scheduled` bean that fabricates telemetry every `simulator.rate` ms (default 3s) and pushes through the same `telemetryEventInput` consumer. Gated by `simulator.enabled` (default true). **Disable this when running scenarios with real upstream telemetry**, otherwise simulated readings will contend with real ones.
+2. **RabbitMQ listener** (`consumer/AdmissionEventListener`) — `@RabbitListener` on the `monitoring.requests` queue of the M10 Core event bus (`spring.rabbitmq.*`, default host `queue.healthgrid.cantero.ar`; queue name via `healthgrid.rabbit.monitoring-queue`). Messages arrive wrapped in a `CoreEventEnvelope` whose `payload` field is a JSON *string* — double parse required. Gated by `healthgrid.rabbit.enabled`. Queues/events/bindings are provisioned from the Core API, never declared locally (see `docs/architecture/shared_docs/comunicacion-tutorial.md`).
+3. **Telemetry simulator** (`service/TelemetrySimulatorService`) — `@Scheduled` bean that fabricates telemetry every `simulator.rate` ms (default 3s) and calls `TelemetryConsumer.processTelemetryMessage` directly. Telemetry is internal-only — it does **not** flow through the Core bus; only resulting alerts are published outward. Gated by `simulator.enabled` (default true). **Disable this when running scenarios with real upstream telemetry**, otherwise simulated readings will contend with real ones.
 
 ### Rule engine and alert fan-out
 `RuleEngineService` evaluates each ingested `TelemetryReading` against active `Rule`s using a 10-minute lookback window for sustained violations, generating `Alert`s. Alerts are then:
 - Persisted via `AlertRepository`.
 - Pushed to subscribed clients via STOMP over WebSocket (`SimpMessagingTemplate` → `/topic/monitoring/{patientId}`).
-- Forwarded to an external Module 6 webhook (`EventPublisherService`, URL from `healthgrid.module6.webhook.url`).
+- Published to the M10 Core event bus (`CoreEventPublisher` → `POST /events/log`, event ids from `healthgrid.module10.core.events.*`, defaults 16/17) **and**, during the transition, to the legacy Module 6 webhook (`EventPublisherService`, URL from `healthgrid.module6.webhook.url`).
 
 The Spanish word for "in-progress" used in this codebase is *internación*; the patient lifecycle uses `PatientStatus` (`ADMITTED`/`STABLE`/`CRITICAL`/`INACTIVE`/...) and `AlertSeverity` (`CRITICAL`/`WARNING`/...).
 
@@ -81,7 +81,8 @@ This service refers to itself as a module that talks to numbered peers (Module 6
 
 - **Backend context path is `/api/v1`** — every URL the frontend or `requests.http` calls must include it. The WebSocket endpoint is `/api/v1/ws`.
 - **Source files mix English and Spanish.** Code identifiers are English; log messages, comments, and DTO descriptions are often Spanish (especially `internacion`/`monitoreo`/`paciente`). Match the convention of the file you are editing.
-- **Tests** run on H2 via `backend/src/test/resources/application.yml` and the `spring-cloud-stream-test-binder` — they do **not** need PostgreSQL or LocalStack. `BaseIntegrationTest` is the shared test base.
+- **Tests** run on H2 via `backend/src/test/resources/application.yml` with all external messaging disabled (`healthgrid.rabbit.enabled=false`, Core/webhook/simulator off) — they do **not** need PostgreSQL or RabbitMQ. `BaseIntegrationTest` is the shared test base.
+- **All wall-clock reads use UTC** (`LocalDateTime.now(ZoneOffset.UTC)`) — telemetry `recordedAt`, alert `triggeredAt`/`acknowledgedAt`, and outbound M6 payloads (serialized with a `'Z'` suffix). Never use bare `LocalDateTime.now()`; it breaks lookback windows and the cross-module timestamp contract.
 - **Lombok is required at compile time** (annotation processor is configured in `pom.xml`). If your IDE shows "cannot find symbol" on `log`/getters/setters, enable Lombok plugin/annotation processing.
 - **`ddl-auto: update`** means destructive schema changes from JPA edits can silently fail or leave orphan columns; review entity changes carefully. There is no migration tool.
 - **`DataSeeder`** (`config/DataSeeder.java`) populates demo data on startup — be aware when troubleshooting unexpected rows.

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 /**
@@ -134,7 +135,7 @@ public class HealthRuleEvaluationService {
                 .severity(rule.getSeverity())
                 .message(alertMessage)
                 .acknowledged(false)
-                .triggeredAt(LocalDateTime.now())
+                .triggeredAt(LocalDateTime.now(ZoneOffset.UTC))
                 .build();
     }
 

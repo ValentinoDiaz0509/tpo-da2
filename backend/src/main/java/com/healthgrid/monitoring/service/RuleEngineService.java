@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -266,7 +267,7 @@ public class RuleEngineService {
             .patient(patient)
             .severity(rule.getSeverity())
             .message(message)
-            .triggeredAt(LocalDateTime.now())
+            .triggeredAt(LocalDateTime.now(ZoneOffset.UTC))
             .acknowledged(false)
             .build();
     }
