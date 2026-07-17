@@ -1,6 +1,7 @@
 package com.healthgrid.monitoring.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,5 +22,6 @@ public class MonitoreoWebhookRequestDTO {
     @JsonProperty("cama_id")
     private Long camaId;
 
+    @JsonDeserialize(using = FlexibleLocalDateTimeDeserializer.class)
     private LocalDateTime timestamp;
 }
