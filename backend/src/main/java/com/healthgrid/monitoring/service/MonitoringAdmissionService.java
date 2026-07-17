@@ -25,29 +25,51 @@ import java.util.Optional;
 @Slf4j
 public class MonitoringAdmissionService {
 
-    /** Payload {@code evento} values agreed with Module 6. Matching is case-insensitive and substring-based. */
+    /** Legacy payload {@code evento} values (single-event / webhook path). Kept as a fallback signal. */
     public static final String EVENTO_ALTA = "ALTA_MONITOREO";
     public static final String EVENTO_BAJA = "BAJA_MONITOREO";
 
     private final PatientRepository patientRepository;
 
     /**
-     * Dispatches a monitoring event to {@link #alta(Long)} or {@link #baja(Long)} based on its
-     * {@code evento} field. Used by the RabbitMQ listener, where a single queue carries both cases.
+     * Dispatches a monitoring event to {@link #alta(Long)} or {@link #baja(Long)}.
+     *
+     * <p>Module 6 publishes two distinct event types (one for alta, one for baja), so the
+     * <b>Core event type name</b> is the primary signal — any name containing {@code "baja"}
+     * is a discharge, {@code "alta"} is an admission. When that is inconclusive (e.g. the legacy
+     * webhook, which has no event type) we fall back to the payload {@code evento} field. If both
+     * are inconclusive we default to alta and log a warning.
+     *
+     * @param eventTypeName the Core {@code event_type_name} from the envelope, or {@code null}
+     * @param request       the parsed monitoring payload
      */
-    public void handleEvent(MonitoreoWebhookRequestDTO request) {
+    public void handleEvent(String eventTypeName, MonitoreoWebhookRequestDTO request) {
         if (request == null || request.getPacienteId() == null) {
             log.warn("Ignoring monitoring event without paciente_id: {}", request);
             return;
         }
 
-        String evento = request.getEvento() == null ? "" : request.getEvento().toUpperCase();
-        if (evento.contains("BAJA")) {
+        if (isBaja(eventTypeName, request.getEvento())) {
             baja(request.getPacienteId());
         } else {
-            // Default to alta: M6's monitoring-start notification is the common case.
             alta(request.getPacienteId());
         }
+    }
+
+    /** Resolves whether an event is a discharge (baja) from the event type name, falling back to the payload field. */
+    private boolean isBaja(String eventTypeName, String eventoField) {
+        String type = eventTypeName == null ? "" : eventTypeName.toLowerCase();
+        if (type.contains("baja")) return true;
+        if (type.contains("alta")) return false;
+
+        // Fallback: legacy single-event / webhook path carries the signal in the payload.
+        String evento = eventoField == null ? "" : eventoField.toUpperCase();
+        if (evento.contains("BAJA")) return true;
+        if (evento.contains("ALTA")) return false;
+
+        log.warn("Could not determine alta/baja from eventType='{}' nor evento='{}'; defaulting to alta",
+                eventTypeName, eventoField);
+        return false;
     }
 
     /**
