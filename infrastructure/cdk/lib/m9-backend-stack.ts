@@ -71,9 +71,14 @@ export class M9BackendStack extends cdk.Stack {
 
     const rdsSg = new ec2.SecurityGroup(this, 'RdsSg', {
       vpc,
-      description: 'RDS - only ECS tasks may reach Postgres.',
+      description: 'RDS - ECS tasks + whitelisted local IPs may reach Postgres.',
     });
     rdsSg.addIngressRule(ecsSg, ec2.Port.tcp(5432));
+    // TEMP (university project): Postgres open to the internet so the whole
+    // team can reach it from any network via DBeaver/psql. The only protection
+    // is the DB password. NEVER do this for real data — revert to ECS-only
+    // (drop this rule + set publiclyAccessible:false) before any real use.
+    rdsSg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(5432), 'Team DB access from any IP (temp)');
 
     // -------------------------------------------------------------------------
     // ECR repository
@@ -123,7 +128,10 @@ export class M9BackendStack extends cdk.Stack {
       multiAz: false,
       allocatedStorage: 20,
       storageEncrypted: true,
-      publiclyAccessible: false,   // SG-locked to ECS
+      // TEMP (university project): public so DBeaver can reach it. Still
+      // SG-locked to ECS + the whitelisted laptop /32 above. Revert to false
+      // (and drop the RdsSg IP rule) before any real deployment.
+      publiclyAccessible: true,
       backupRetention: cdk.Duration.days(0),
       deletionProtection: false,   // so cdk destroy works
       removalPolicy: cdk.RemovalPolicy.DESTROY,
