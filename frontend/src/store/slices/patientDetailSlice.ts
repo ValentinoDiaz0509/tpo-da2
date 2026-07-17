@@ -75,8 +75,11 @@ const initialState: PatientDetailState = {
 const formatTime = (date: Date): string =>
   `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
 
-const formatLocalDateTime = (date: Date): string =>
-  `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}T${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}:${date.getSeconds().toString().padStart(2, '0')}`;
+// Backend stores telemetry recordedAt in UTC, so the range query must be built
+// in UTC too — using local wall-clock here silently returns an empty window for
+// any client whose timezone differs from UTC (e.g. UTC-3).
+const formatUtcDateTime = (date: Date): string =>
+  `${date.getUTCFullYear()}-${(date.getUTCMonth() + 1).toString().padStart(2, '0')}-${date.getUTCDate().toString().padStart(2, '0')}T${date.getUTCHours().toString().padStart(2, '0')}:${date.getUTCMinutes().toString().padStart(2, '0')}:${date.getUTCSeconds().toString().padStart(2, '0')}`;
 
 export const fetchPatientDetail = createAsyncThunk(
   'patientDetail/fetchPatient',
@@ -105,8 +108,8 @@ export const fetchPatientTelemetry = createAsyncThunk(
   'patientDetail/fetchTelemetry',
   async (id: string, { rejectWithValue }) => {
     try {
-      const endTime = formatLocalDateTime(new Date());
-      const startTime = formatLocalDateTime(new Date(Date.now() - 15 * 60000));
+      const endTime = formatUtcDateTime(new Date());
+      const startTime = formatUtcDateTime(new Date(Date.now() - 15 * 60000));
       const data = await apiFetch<TelemetryReading[]>(
         `/telemetry/patient/${id}/range?startTime=${startTime}&endTime=${endTime}`,
       );
