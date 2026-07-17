@@ -14,9 +14,12 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class MonitoreoWebhookRequestDTO {
     private String evento;
-    
+
     @JsonProperty("paciente_id")
     private Long pacienteId;
-    
+
+    @JsonProperty("cama_id")
+    private Long camaId;
+
     private LocalDateTime timestamp;
 }

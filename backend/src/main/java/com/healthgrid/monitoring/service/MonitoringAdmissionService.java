@@ -50,9 +50,9 @@ public class MonitoringAdmissionService {
         }
 
         if (isBaja(eventTypeName, request.getEvento())) {
-            baja(request.getPacienteId());
+            baja(request.getPacienteId(), request.getCamaId());
         } else {
-            alta(request.getPacienteId());
+            alta(request.getPacienteId(), request.getCamaId());
         }
     }
 
@@ -74,18 +74,30 @@ public class MonitoringAdmissionService {
 
     /**
      * Starts (or reactivates) monitoring for a patient identified by its Module 6 id.
+     *
+     * @param pacienteId Module 6 patient id (external id)
+     * @param camaId     Module 6 bed id; stored on the patient's {@code bed} when provided (may be null)
      */
     @Transactional
-    public void alta(Long pacienteId) {
+    public void alta(Long pacienteId, Long camaId) {
         String externalId = pacienteId.toString();
+        String bed = camaId != null ? camaId.toString() : null;
         Optional<Patient> existingPatient = patientRepository.findByExternalId(externalId);
 
         if (existingPatient.isPresent()) {
             Patient p = existingPatient.get();
+            boolean changed = false;
             if (p.getStatus() == PatientStatus.INACTIVE) {
                 p.setStatus(PatientStatus.NORMAL); // Reactivate monitoring
+                changed = true;
+            }
+            if (bed != null && !bed.equals(p.getBed())) {
+                p.setBed(bed); // Keep the bed in sync with M6
+                changed = true;
+            }
+            if (changed) {
                 patientRepository.save(p);
-                log.info("Reactivated monitoring for existing patient: {}", p.getId());
+                log.info("Updated monitoring for existing patient {} (cama_id={})", p.getId(), camaId);
             }
         } else {
             // Create a stub patient since Module 6 doesn't send name/room
@@ -93,19 +105,22 @@ public class MonitoringAdmissionService {
                     .externalId(externalId)
                     .name("Paciente M6-" + externalId)
                     .room("Sala TBD")
-                    .bed("Cama TBD")
+                    .bed(bed != null ? bed : "Cama TBD")
                     .status(PatientStatus.NORMAL)
                     .build();
             patientRepository.save(newPatient);
-            log.info("Created new patient stub with internal ID: {}", newPatient.getId());
+            log.info("Created new patient stub with internal ID: {} (cama_id={})", newPatient.getId(), camaId);
         }
     }
 
     /**
      * Stops monitoring for a patient identified by its Module 6 id.
+     *
+     * @param pacienteId Module 6 patient id (external id)
+     * @param camaId     Module 6 bed id (informational for baja; may be null)
      */
     @Transactional
-    public void baja(Long pacienteId) {
+    public void baja(Long pacienteId, Long camaId) {
         String externalId = pacienteId.toString();
         Optional<Patient> existingPatient = patientRepository.findByExternalId(externalId);
 
@@ -113,9 +128,9 @@ public class MonitoringAdmissionService {
             Patient p = existingPatient.get();
             p.setStatus(PatientStatus.INACTIVE);
             patientRepository.save(p);
-            log.info("Suspended monitoring for patient: {}", p.getId());
+            log.info("Suspended monitoring for patient: {} (cama_id={})", p.getId(), camaId);
         } else {
-            log.warn("Received BAJA_MONITOREO for unknown paciente_id: {}", pacienteId);
+            log.warn("Received BAJA_MONITOREO for unknown paciente_id: {} (cama_id={})", pacienteId, camaId);
         }
     }
 }

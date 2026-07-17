@@ -148,18 +148,19 @@ say "  ALTA:"
 say '    {'
 say "      \"event_type_id\": ${ALTA_EVENT_ID:-<ALTA_EVENT_ID>},"
 say '      "publisher_module": "internacion",'
-say '      "payload": "{\"paciente_id\":123,\"timestamp\":\"2026-07-17T14:00:00Z\"}"'
+say '      "payload": "{\"paciente_id\":123,\"cama_id\":45,\"timestamp\":\"2026-07-17T14:00:00Z\"}"'
 say '    }'
 say ""
 say "  BAJA:"
 say '    {'
 say "      \"event_type_id\": ${BAJA_EVENT_ID:-<BAJA_EVENT_ID>},"
 say '      "publisher_module": "internacion",'
-say '      "payload": "{\"paciente_id\":123,\"timestamp\":\"2026-07-17T14:05:00Z\"}"'
+say '      "payload": "{\"paciente_id\":123,\"cama_id\":45,\"timestamp\":\"2026-07-17T14:05:00Z\"}"'
 say '    }'
 say ""
 say "  Contrato del payload interno:"
 say '    paciente_id : integer   (id del paciente en el Core) — obligatorio'
+say '    cama_id     : integer   (id de la cama en M6)'
 say '    timestamp   : string ISO-8601 UTC'
 say "${c_bld}=========================================================${c_rst}"
 say ""
