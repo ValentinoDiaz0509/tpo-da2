@@ -16,15 +16,18 @@ import { useAppSelector } from '../store';
 const SIDEBAR_BG = '#0f3c2b';
 const SIDEBAR_ACTIVE = '#17523d';
 const TEXT_MUTED = '#8aa99c';
+const CORE_API_URL = import.meta.env.VITE_CORE_API_URL ?? 'https://api.healthcare.cantero.ar';
 
 const navItems = [
   {
     href: 'https://healthgrid-hce-frontend-olive.vercel.app',
+    ssoPath: '/auth/sso',
     icon: <FolderSharedIcon fontSize="small" />,
     label: 'Historia Clinica',
   },
   {
     href: 'https://turnos.solefrancisco.com',
+    ssoPath: '/auth/sso',
     icon: <CalendarMonthIcon fontSize="small" />,
     label: 'Turnos y Agendas',
   },
@@ -35,41 +38,90 @@ const navItems = [
   },
   {
     href: 'https://modulo-laboratorio.up.railway.app',
+    ssoPath: '/auth/sso',
     icon: <ScienceIcon fontSize="small" />,
     label: 'Laboratorio',
   },
   {
     href: 'https://uade-da-2-frontend.vercel.app',
+    ssoPath: '/auth/sso',
+    redirect: '/MENU',
     icon: <ReceiptIcon fontSize="small" />,
     label: 'Imagenes',
   },
   {
     href: 'https://internaciones-y-camas.vercel.app',
+    ssoPath: '/auth/sso',
     icon: <MedicalServicesIcon fontSize="small" />,
     label: 'Internaciones y Camas',
   },
   {
     href: 'https://modulo7-frontend.onrender.com',
+    ssoPath: '/auth/sso',
     icon: <GroupIcon fontSize="small" />,
     label: 'Facturacion',
   },
   {
     href: 'https://da2frontend.onrender.com',
+    ssoPath: '/auth/sso',
     icon: <GroupIcon fontSize="small" />,
     label: 'Paciente',
   },
   {
     href: 'https://dzp5goz8czibt.cloudfront.net',
+    ssoPath: '/auth/sso',
+    redirect: '/login',
     icon: <MonitorHeartIcon fontSize="small" />,
     label: 'Monitoreo',
     activePath: '/monitoreo',
   },
   {
     href: 'https://healthgrid.cantero.ar',
+    ssoPath: '/auth/sso',
     icon: <MedicalServicesIcon fontSize="small" />,
     label: 'Core',
   },
 ];
+
+type NavItem = (typeof navItems)[number];
+
+interface SsoTicketResponse {
+  ticket: string;
+}
+
+const fetchSsoTicket = async (token: string): Promise<string> => {
+  const response = await fetch(`${CORE_API_URL}/auth/sso-ticket`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`SSO ticket failed: ${response.status}`);
+  }
+
+  const data = (await response.json()) as SsoTicketResponse;
+  if (!data.ticket) {
+    throw new Error('Core did not return an SSO ticket');
+  }
+
+  return data.ticket;
+};
+
+const buildSsoUrl = (item: NavItem, ticket: string): string => {
+  if (!('ssoPath' in item) || !item.ssoPath) {
+    return item.href;
+  }
+
+  const url = new URL(item.ssoPath, item.href);
+  url.searchParams.set('ticket', ticket);
+
+  if ('redirect' in item && item.redirect) {
+    url.searchParams.set('redirect', item.redirect);
+  }
+
+  return url.toString();
+};
 
 interface Props {
   width: number;
@@ -78,6 +130,7 @@ interface Props {
 const Sidebar = ({ width }: Props) => {
   const location = useLocation();
   const user = useAppSelector((s) => s.auth.user);
+  const token = useAppSelector((s) => s.auth.token);
 
   const initials = user
     ? `${user.first_name[0] ?? ''}${user.last_name[0] ?? ''}`.toUpperCase()
@@ -85,6 +138,20 @@ const Sidebar = ({ width }: Props) => {
 
   const displayName = user ? `${user.first_name} ${user.last_name}` : 'Health Grid';
   const role = user?.roles[0]?.name ?? 'Usuario';
+
+  const navigateToModule = async (item: NavItem) => {
+    if (!('ssoPath' in item) || !item.ssoPath || !token) {
+      window.location.assign(item.href);
+      return;
+    }
+
+    try {
+      const ticket = await fetchSsoTicket(token);
+      window.location.assign(buildSsoUrl(item, ticket));
+    } catch {
+      window.location.assign(item.href);
+    }
+  };
 
   return (
     <Drawer
@@ -118,7 +185,8 @@ const Sidebar = ({ width }: Props) => {
           MODULOS
         </Typography>
 
-        {navItems.map(({ href, icon, label, activePath }) => {
+        {navItems.map((item) => {
+          const { href, icon, label, activePath } = item;
           const isActive = Boolean(activePath && location.pathname.startsWith(activePath));
 
           return (
@@ -126,6 +194,10 @@ const Sidebar = ({ width }: Props) => {
               key={href}
               component="a"
               href={href}
+              onClick={(event) => {
+                event.preventDefault();
+                void navigateToModule(item);
+              }}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
