@@ -24,7 +24,6 @@ export class WebSocketService {
     });
 
     this.client.onConnect = () => {
-      console.log('Connected to STOMP');
       onConnect?.();
     };
 

@@ -26,12 +26,6 @@ aws:
     access-key: test
     secret-key: test
 
-security:
-  jwt:
-    secret: healthgrid-monitoring-secret-key-module10-issuer-2026-hs512-secure-key-abcdef1234567890
-    expiration: 86400000
-    issuer: Module10-Core
-
 server:
   servlet:
     context-path: /api/v1

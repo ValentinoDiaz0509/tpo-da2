@@ -41,8 +41,8 @@ flowchart TB
 
             subgraph Security["Security (cross-cutting)"]
                 JwtFilter["JwtAuthenticationFilter\nvalidates Bearer token on every request"]
-                JwtProv["JwtTokenProvider\nHS512 · 24 h TTL"]
-                AuthCtl["AuthenticationController\nPOST /auth/token\n(simulates M10 — temporary)"]
+                JwtProv["JwtTokenProvider\nCore JWKS validation"]
+                AuthCtl["AuthenticationController\nGET /auth/me"]
             end
 
             subgraph Inbound["Inbound paths"]
@@ -102,8 +102,8 @@ flowchart TB
     LoginPage --> AuthCtx
     MonView --> WSClient
     DetailView --> WSClient
-    AuthCtx -->|"POST /auth/token"| AuthCtl
-    AuthCtl --> JwtProv
+    AuthCtx -->|"POST /auth/login"| Core
+    Core -->|"JWT + user"| AuthCtx
 
     FE -->|"REST · Authorization: Bearer JWT"| ALB
     WSClient -->|"SockJS CONNECT /api/v1/ws"| STOMPBroker
@@ -151,7 +151,7 @@ flowchart TB
     RuleEng -->|"Query last 10 min"| TeleDao
 
     %% ── JWT Validation boundary ──────────────────────────────────────
-    M10 -. "Future: real JWT issuer\n(JWKS / RS256)" .-> JwtProv
+    M10 -->|"JWKS / RS256"| JwtProv
 
     %% ── Ops ──────────────────────────────────────────────────────────
     BE -. "read secrets" .-> Secrets
@@ -181,7 +181,7 @@ flowchart TB
 | Flow | Path |
 |------|------|
 | **Nurse opens dashboard** | Browser → Route 53 → ALB → React SPA → REST `/patients/monitoring` + STOMP subscribe |
-| **Login / token** | SPA → `POST /auth/token` → JwtTokenProvider (HS512) → JWT → localStorage |
+| **Login / token** | SPA → Core `/auth/login` → Core-issued JWT → localStorage → M9 validates via JWKS |
 | **IoT telemetry** | Sensor → SQS `telemetry-readings-queue` → TelemetryConsumer → TelemetryReadingService → DynamoDB |
 | **Rule evaluation** | TelemetryConsumer → RuleEngineService (10-min DynamoDB lookback) → AlertService → EventPublisherService |
 | **Alert fan-out** | AlertService → ① Postgres persist ② STOMP push to SPA ③ SNS → SQS → M6 / M8 |

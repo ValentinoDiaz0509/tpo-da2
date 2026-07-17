@@ -50,7 +50,7 @@ cd backend
 mvn spring-boot:run
 ```
 
-The API serves at **http://localhost:8080/api/v1** with Swagger UI at `/api/v1/swagger-ui.html` and health at `/api/v1/actuator/health`. A `DataSeeder` populates demo patients on first start.
+The API serves at **http://localhost:8080/api/v1** with Swagger UI at `/api/v1/swagger-ui.html` and health at `/api/v1/actuator/health`. With the default `local` profile, a `DataSeeder` populates demo patients on first start; it is disabled in the AWS `prod` profile.
 
 ### 3. Run the frontend
 
@@ -60,13 +60,7 @@ npm install
 npm run dev                 # http://localhost:5173
 ```
 
-Log in through the UI, or generate a token directly:
-
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/token \
-  -H "Content-Type: application/json" \
-  -d '{"module":"DASHBOARD","userId":"demo"}'
-```
+Log in through the UI. The frontend authenticates against Module 10 (Core), stores the Core-issued JWT, and sends it to this service as `Authorization: Bearer ...`.
 
 ## How it works
 
@@ -95,9 +89,7 @@ Defaults live in `backend/src/main/resources/application.yml`. Common overrides 
 
 | Variable              | Purpose                                            | Default                                   |
 | --------------------- | -------------------------------------------------- | ----------------------------------------- |
-| `JWT_SECRET`          | HS512 signing key (≥256 bits in production)        | dev-only key (do not use in prod)         |
-| `JWT_EXPIRATION`      | Token TTL in ms                                    | `86400000` (24h)                          |
-| `JWT_ISSUER`          | `iss` claim                                        | `Module10-Core`                           |
+| `MODULE10_CORE_URL`   | Core base URL for JWKS validation and service login | `http://localhost:8081`                  |
 | `MODULE6_WEBHOOK_URL` | Where to forward emergency alerts                  | `http://localhost:8086/webhooks/...`      |
 
 ## Testing
@@ -118,6 +110,5 @@ The frontend currently ships only ESLint (`npm run lint`); no test runner is con
 - [`docs/architecture/aws-deployment-guide.md`](./docs/architecture/aws-deployment-guide.md) — step-by-step ECS Fargate + RDS + DynamoDB deployment
 - [`docs/architecture/ARCHITECTURE.md`](./docs/architecture/ARCHITECTURE.md) — layered design overview
 - [`docs/guides/DEVELOPMENT_GUIDE.md`](./docs/guides/DEVELOPMENT_GUIDE.md) — how to add endpoints, consumers, and tests
-- [`docs/guides/SECURITY_JWT_GUIDE.md`](./docs/guides/SECURITY_JWT_GUIDE.md) — JWT flow and Module 10 integration
 - [`docs/guides/TELEMETRY_INGESTION_GUIDE.md`](./docs/guides/TELEMETRY_INGESTION_GUIDE.md) — telemetry pipeline deep-dive
 - [`backend/requests.http`](./backend/requests.http) — ready-to-run API examples

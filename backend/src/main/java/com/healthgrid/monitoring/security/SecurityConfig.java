@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Spring Security Configuration for JWT-based authentication.
  * 
  * Configured for stateless JWT authentication.
- * All requests (except auth endpoints) require valid JWT token from Module 10 (Core).
+ * All protected API requests require a valid JWT token from Module 10 (Core).
  */
 @Configuration
 @EnableWebSecurity
@@ -47,8 +47,20 @@ public class SecurityConfig {
             .and()
             .authorizeHttpRequests(authz -> authz
                 // Public endpoints (no auth required)
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/health", "/actuator/**").permitAll()
-                .requestMatchers("/auth/**").permitAll()  // Auth endpoints
+                .requestMatchers(
+                    "/swagger-ui.html",
+                    "/swagger-ui/**",
+                    "/openapi.json",
+                    "/openapi.json/**",
+                    "/openapi/**",
+                    "/v3/api-docs",
+                    "/v3/api-docs/**",
+                    "/v3/api-docs/swagger-config",
+                    "/health",
+                    "/actuator/**"
+                ).permitAll()
+                .requestMatchers("/auth/sso").permitAll()
+                .requestMatchers("/auth/me").authenticated()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/ws").permitAll()
                 

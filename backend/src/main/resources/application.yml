@@ -73,27 +73,6 @@ healthgrid:
     access-key: test
     secret-key: test
 
-# Security Configuration - JWT Authentication (Module 10 - Core)
-security:
-  jwt:
-    # Secret key for HS512 signing. For production, use environment variable:
-    # export JWT_SECRET=your-long-and-secure-key-at-least-256-bits
-    secret: ${JWT_SECRET:healthgrid-monitoring-secret-key-module10-issuer-2026-hs512-secure-key-abcdef1234567890}
-    
-    # Token expiration time in milliseconds (default: 24 hours = 86400000 ms)
-    expiration: ${JWT_EXPIRATION:86400000}
-    
-    # Token issuer claim (Module 10 - Core simulates the issuer)
-    issuer: ${JWT_ISSUER:Module10-Core}
-    enabled: true
-  credentials:
-    access-key: test
-    secret-key: test
-  jackson:
-    serialization:
-      write-dates-as-timestamps: false
-    default-property-inclusion: non_null
-
 server:
   port: 8080
   servlet:
@@ -120,6 +99,8 @@ simulator:
   rate: ${SIMULATOR_RATE:3000}
 
 app:
+  frontend:
+    base-url: ${APP_FRONTEND_BASE_URL:}
   cors:
     allowed-origin-patterns: ${APP_CORS_ALLOWED_ORIGIN_PATTERNS:http://localhost:3000,http://localhost:8080,http://localhost:5173,http://127.0.0.1:5173,https://*.cloudfront.net}
 

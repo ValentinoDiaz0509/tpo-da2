@@ -148,7 +148,7 @@ flowchart TB
         AlertSvc[AlertService]
         RuleEng[RuleEngineService<br/>10-min lookback]
         EvtPub[EventPublisherService<br/>SNS publish + Module 6 webhook]
-        JwtP[JwtTokenProvider<br/>HS512]
+        JwtP[JwtTokenProvider<br/>Core JWKS]
     end
 
     subgraph Data["Data layer"]
@@ -194,36 +194,30 @@ flowchart TB
 
 ## 4. Authentication (JWT) sequence
 
-How a nurse's browser gets a token. The "Core" issuer is simulated in-process today (`AuthenticationController`) — the dashed arrow marks the seam where Module 10 will eventually take over.
+How a nurse's browser gets a token from Module 10 (Core), then uses it against the monitoring service.
 
 ```mermaid
 sequenceDiagram
     actor Nurse
     participant SPA as React SPA
-    participant AuthCtl as AuthenticationController<br/>(simulates M10)
+    participant Core as Module 10 Core
     participant JwtP as JwtTokenProvider
     participant Filter as JwtAuthenticationFilter
     participant API as Protected REST Endpoint
 
     Nurse->>SPA: enter credentials
-    SPA->>AuthCtl: POST /api/v1/auth/token<br/>{module, userId}
-    AuthCtl->>JwtP: generateToken(claims)
-    Note over JwtP: HS512 signed<br/>issuer = Module10-Core<br/>exp = 24h
-    JwtP-->>AuthCtl: signed JWT
-    AuthCtl-->>SPA: 200 OK · {token, expiresIn}
+    SPA->>Core: POST /auth/login<br/>{email, password}
+    Core-->>SPA: 200 OK · {token, user}
     SPA->>SPA: store token in localStorage
 
     Nurse->>SPA: open /monitoring
     SPA->>Filter: GET /api/v1/patients/monitoring<br/>Authorization: Bearer <JWT>
-    Filter->>JwtP: validate(token)
+    Filter->>JwtP: validate(token via Core JWKS)
     JwtP-->>Filter: claims · OK
     Filter->>API: forward with SecurityContext
     API-->>SPA: 200 OK · patient list
     SPA-->>Nurse: render dashboard
 
-    rect rgb(255,245,230)
-        Note over AuthCtl,JwtP: Future: replace with real M10 Core<br/>(JWKS / RS256). The filter & provider<br/>contract stays the same.
-    end
 ```
 
 ---

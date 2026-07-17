@@ -1,5 +1,4 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import { API_BASE_URL } from '../../services/api';
 
 export interface UserRole {
   name: string;
@@ -21,18 +20,51 @@ interface AuthState {
   error: string | null;
 }
 
-interface TokenResponse {
-  token: string;
-  module: string;
-  userId: string;
-}
-
 const initialState: AuthState = {
   user: null,
   token: null,
   isAuthenticated: false,
   loading: false,
   error: null,
+};
+
+interface CoreLoginResponse {
+  token: string;
+  user: {
+    id: number;
+    first_name?: string;
+    last_name?: string;
+    email: string;
+    roles?: Array<UserRole | string>;
+  };
+}
+
+interface TokenPayload {
+  roles?: Array<UserRole | string>;
+  permissions?: string[];
+}
+
+const normalizeRoles = (roles?: Array<UserRole | string>): UserRole[] => {
+  if (!roles || roles.length === 0) return [];
+
+  return roles
+    .map((role) => (typeof role === 'string' ? { name: role } : role))
+    .filter((role): role is UserRole => Boolean(role?.name));
+};
+
+const getRolesFromToken = (token: string): UserRole[] => {
+  try {
+    const encodedPayload = token.split('.')[1];
+    const base64Payload = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedPayload = base64Payload.padEnd(base64Payload.length + ((4 - base64Payload.length % 4) % 4), '=');
+    const payload = JSON.parse(atob(paddedPayload)) as TokenPayload;
+    const roles = normalizeRoles(payload.roles);
+    if (roles.length > 0) return roles;
+
+    return (payload.permissions ?? []).map((permission) => ({ name: permission }));
+  } catch {
+    return [];
+  }
 };
 
 export const loginThunk = createAsyncThunk(
@@ -57,14 +89,16 @@ export const loginThunk = createAsyncThunk(
         throw new Error(`Login failed: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as CoreLoginResponse;
+      const roles = normalizeRoles(data.user.roles);
+      const tokenRoles = getRolesFromToken(data.token);
 
       const userData: User = {
         id: data.user.id,
-        first_name: data.user.first_name,
-        last_name: data.user.last_name,
+        first_name: data.user.first_name ?? '',
+        last_name: data.user.last_name ?? '',
         email: data.user.email,
-        roles: [{ name: 'ENFERMERO' }], // Default for now
+        roles: roles.length > 0 ? roles : tokenRoles.length > 0 ? tokenRoles : [{ name: 'ENFERMERO' }],
       };
 
       localStorage.setItem('token', data.token);

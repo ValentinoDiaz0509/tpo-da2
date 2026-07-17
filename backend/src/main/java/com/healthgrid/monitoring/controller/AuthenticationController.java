@@ -1,10 +1,6 @@
 package com.healthgrid.monitoring.controller;
 
 import com.healthgrid.monitoring.dto.auth.AuthInfo;
-import com.healthgrid.monitoring.dto.auth.TokenRequest;
-import com.healthgrid.monitoring.dto.auth.TokenResponse;
-import com.healthgrid.monitoring.dto.auth.TokenValidationResponse;
-import com.healthgrid.monitoring.security.JwtTokenProvider;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -16,31 +12,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Authentication Controller - Simulates Module 10 (Core) token issuer.
- * 
- * Provides endpoints for:
- * - Token generation (Module 10 issues tokens)
- * - Token validation
+ * Authentication Controller for current Core-issued JWT sessions.
  */
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
 @Slf4j
-@Tag(name = "Authentication", description = "JWT token endpoints (Module 10 - Core)")
+@Tag(name = "Authentication", description = "Current authentication information")
 public class AuthenticationController {
-
-    // TODO(core): eliminar este controller del flujo real cuando Core emita y valide JWT.
-    // TODO(core): conservarlo solo bajo perfil mock/dev si sigue siendo util para pruebas locales.
-    private final JwtTokenProvider jwtTokenProvider;
-
-
 
     /**
      * Get current authentication info.
