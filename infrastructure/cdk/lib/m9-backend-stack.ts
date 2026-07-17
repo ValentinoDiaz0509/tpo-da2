@@ -214,7 +214,7 @@ export class M9BackendStack extends cdk.Stack {
         AWS_REGION: this.region,
         AWS_SQS_REGION: this.region,
         AWS_SQS_ENABLED: 'true',
-        SIMULATOR_ENABLED: 'false',
+        SIMULATOR_ENABLED: 'true',
         MODULE6_WEBHOOK_URL: module6WebhookUrl,
         MODULE6_WEBHOOK_ALERTA_EMERGENCIA_URL: module6WebhookUrl,
         MODULE10_CORE_URL: 'https://api.healthcare.cantero.ar',
