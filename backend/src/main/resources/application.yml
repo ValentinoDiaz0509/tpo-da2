@@ -82,6 +82,11 @@ management:
   endpoint:
     health:
       show-details: when-authorized
+  health:
+    rabbit:
+      # A RabbitMQ outage/misconfiguration must not drag the whole /actuator/health
+      # (and therefore the ALB target-group health check) to DOWN.
+      enabled: false
   metrics:
     export:
       simple:
