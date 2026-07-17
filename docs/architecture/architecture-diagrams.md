@@ -17,7 +17,7 @@ Visual companion to [`aws-deployment-guide.md`](./aws-deployment-guide.md). Each
 
 ## 1. System context
 
-M9 lives in a "modules" landscape (M6 Internación, M10 Core). Its boundaries are: people (medical staff), medical devices (IoT sensors), and the two sibling modules. Everything inside the dashed box is what *we* build and operate.
+M9 lives in a "modules" landscape (M6 Internación, M10 Core). Its boundaries are: people (medical staff), medical devices (IoT sensors), and the sibling modules. Everything inside the dashed box is what *we* build and operate. Cross-module messaging goes through the **Core RabbitMQ event bus** (publish via `POST /events/log`, consume from our `monitoring.requests` queue) — there is no AWS SQS/SNS in the running system.
 
 ```mermaid
 flowchart LR
@@ -32,108 +32,93 @@ flowchart LR
         SPA <--> API
     end
 
-    M10[(Módulo 10 — Core<br/>JWT Issuer)]
+    M10[(Módulo 10 — Core<br/>JWT Issuer + RabbitMQ Event Bus)]
     M6[(Módulo 6 — Internación<br/>Admission Module)]
-    M8[(Módulo 8 — Patient Portal)]
 
     Nurse -->|HTTPS · dashboard| SPA
     Doctor -->|HTTPS · dashboard| SPA
-    Sensor -->|Publish telemetry JSON| API
+    Sensor -->|Telemetry JSON<br/>in-process, no broker| API
 
-    API -->|Validate Bearer JWT| M10
-    M6 -->|Admission events| API
-    API -->|Emergency alert webhook / SNS| M6
-    API -->|Patient-state events via SNS| M8
+    API -->|Validate Bearer JWT via JWKS| M10
+    M6 -->|alta/baja monitoreo<br/>via Core bus or webhook| API
+    API -->|Emergency/resolved alerts<br/>Core POST /events/log id 16/17| M10
+    M10 -->|routes to internacion.requests| M6
 
     classDef ext fill:#eef,stroke:#669,stroke-width:1px;
-    class M10,M6,M8,Sensor,Nurse,Doctor ext;
+    class M10,M6,Sensor,Nurse,Doctor ext;
 ```
 
 ---
 
 ## 2. AWS deployment topology
 
-Where each box from diagram 1 actually runs in AWS. Public-facing components (ALB) sit in public subnets; the JVM, Postgres, DynamoDB, and queues live in private subnets or are accessed via VPC endpoints.
+Where each box from diagram 1 actually runs. The public edge (CloudFront + ALB) and the ECS task live in AWS; **RabbitMQ and the event bus are hosted by Module 10 (Core)**, reached over the network — M9 provisions no queues of its own in AWS. Persistence is a single RDS PostgreSQL instance.
 
 ```mermaid
 flowchart TB
     Internet((Internet))
 
+    subgraph Core["Module 10 — Core (external to our AWS)"]
+        CoreAPI[Core API<br/>api.healthcare.cantero.ar<br/>/events/log · /rabbit/*]
+        Rabbit[/RabbitMQ<br/>health_grid_exchange<br/>queue.healthgrid.cantero.ar/]
+        QMon[/monitoring.requests + .dlq/]
+    end
+
     subgraph AWS["AWS Account · us-east-1"]
-        Route53[Route 53<br/>DNS]
-        ACM[ACM<br/>TLS cert]
-
-        subgraph VPC["VPC"]
-            subgraph PubSub["Public subnets · 2 AZs"]
-                ALB[Application<br/>Load Balancer<br/>HTTPS · WebSocket]
-            end
-
-            subgraph PrivSub["Private subnets · 2 AZs"]
-                subgraph ECS["ECS Fargate Cluster · health-grid"]
-                    Task1[m9-monitoring task<br/>Spring Boot JVM<br/>port 8080]
-                    Task2[m9-monitoring task<br/>Spring Boot JVM<br/>port 8080]
-                end
-                RDS[(RDS PostgreSQL<br/>db.t3.micro · Multi-AZ)]
-            end
+        subgraph Edge["Public edge"]
+            CF[CloudFront<br/>default → S3 · /api/* → ALB]
+            S3[(S3<br/>React SPA · private OAC)]
+            ALB[Application<br/>Load Balancer<br/>HTTP · WebSocket]
         end
 
-        DDB[(DynamoDB<br/>m9-telemetry-readings<br/>PAY_PER_REQUEST + TTL)]
-        SNS[/SNS Topic<br/>monitoring-events/]
-        SQS_T[/SQS<br/>m9-telemetry-ingest/]
-        SQS_P[/SQS<br/>patient-events-queue/]
-        SQS_M6[/SQS<br/>m6-monitoring-sub/]
-        SQS_M8[/SQS<br/>m8-monitoring-sub/]
+        subgraph ECS["ECS Fargate Cluster · health-grid"]
+            Task1[m9-monitoring task<br/>Spring Boot JVM<br/>port 8080]
+        end
+        RDS[(RDS PostgreSQL 16<br/>patients · rules · alerts<br/>telemetry_readings)]
 
-        Secrets[Secrets Manager<br/>DB creds · JWT secret]
+        Secrets[Secrets Manager<br/>DB creds · JWT]
         CW[CloudWatch Logs<br/>+ Metrics]
         ECR[ECR<br/>health-grid/m9-monitoring]
     end
 
-    Internet --> Route53 --> ALB
-    ACM -.-> ALB
+    Internet --> CF
+    CF --> S3
+    CF -->|/api/*| ALB
     ALB --> Task1
-    ALB --> Task2
 
-    Task1 --> RDS
-    Task2 --> RDS
-    Task1 --> DDB
-    Task2 --> DDB
-    Task1 -->|consume| SQS_T
-    Task2 -->|consume| SQS_T
-    Task1 -->|consume| SQS_P
-    Task2 -->|consume| SQS_P
-    Task1 -->|publish| SNS
-    Task2 -->|publish| SNS
-
-    SNS --> SQS_M6
-    SNS --> SQS_M8
+    Task1 -->|JPA| RDS
+    Task1 -->|listen| QMon
+    Rabbit --> QMon
+    Task1 -->|publish alerts| CoreAPI
+    CoreAPI --> Rabbit
 
     Task1 -.read.-> Secrets
-    Task2 -.read.-> Secrets
     Task1 -.logs.-> CW
-    Task2 -.logs.-> CW
     ECR -.pull.-> ECS
 
     classDef store fill:#fff8dc,stroke:#a80,stroke-width:1px;
     classDef queue fill:#e0f7ff,stroke:#0a7,stroke-width:1px;
-    class RDS,DDB store;
-    class SNS,SQS_T,SQS_P,SQS_M6,SQS_M8 queue;
+    class RDS,S3 store;
+    class Rabbit,QMon,CoreAPI queue;
 ```
+
+> **Infra follow-up:** the CDK (`infrastructure/cdk/lib/m9-backend-stack.ts`) still provisions three now-unused SQS queues and `AWS_SQS_*` env vars — pending removal in favour of `RABBITMQ_*` / `MODULE10_CORE_*`.
 
 ---
 
 ## 3. Backend application layers
 
-Inside a single Spring Boot task, the code is organised by role. Three *inbound* paths (REST, SQS, scheduled simulator) all converge on the same service layer.
+Inside a single Spring Boot task, the code is organised by role. Inbound paths (REST, RabbitMQ listener, scheduled simulator, legacy webhook) all converge on the same service layer.
 
 ```mermaid
 flowchart TB
-    subgraph Inbound["Inbound (3 paths into the same domain)"]
+    subgraph Inbound["Inbound paths into the same domain"]
         REST[REST Controllers<br/>PatientController<br/>RuleController<br/>AlertController<br/>MonitoringController<br/>TelemetryReadingController]
         WS[WebSocket Endpoint<br/>STOMP · SockJS<br/>/api/v1/ws]
-        Cons[SQS Consumers<br/>TelemetryConsumer<br/>PatientEventConsumer]
+        Adm[AdmissionEventListener<br/>@RabbitListener<br/>monitoring.requests]
+        Tele[TelemetryConsumer<br/>processTelemetryMessage]
         Sim[Scheduled Job<br/>TelemetrySimulatorService<br/>simulator.enabled]
-        WH[Webhook Receiver<br/>InternacionWebhookController]
+        WH[Webhook Receiver<br/>InternacionWebhookController<br/>legacy]
     end
 
     subgraph CrossCut["Cross-cutting"]
@@ -143,19 +128,21 @@ flowchart TB
 
     subgraph Domain["Service / Domain layer"]
         PatientSvc[PatientService]
+        AdmSvc[MonitoringAdmissionService]
         TeleSvc[TelemetryReadingService]
         RuleSvc[RuleService]
         AlertSvc[AlertService]
         RuleEng[RuleEngineService<br/>10-min lookback]
-        EvtPub[EventPublisherService<br/>SNS publish + Module 6 webhook]
+        EvtPub[EventPublisherService<br/>Core /events/log + M6 webhook]
+        CorePub[CoreEventPublisher<br/>+ CoreAuthService]
         JwtP[JwtTokenProvider<br/>Core JWKS]
     end
 
-    subgraph Data["Data layer"]
+    subgraph Data["Data layer · all JPA / Postgres"]
         PatRepo[(PatientRepository)]
         RuleRepo[(RuleRepository)]
         AlertRepo[(AlertRepository)]
-        TeleDao[(TelemetryReadingDao<br/>DynamoDB Enhanced)]
+        TeleRepo[(TelemetryReadingRepository)]
     end
 
     REST --> SecF --> PatientSvc
@@ -163,21 +150,22 @@ flowchart TB
     SecF --> RuleSvc
     SecF --> AlertSvc
     WS --> WSCfg
-    Cons --> TeleSvc
-    Cons --> PatientSvc
-    Sim --> TeleSvc
-    WH --> PatientSvc
+    Adm --> AdmSvc --> PatientSvc
+    Sim --> Tele --> TeleSvc
+    Tele --> RuleEng
+    WH --> AdmSvc
 
     TeleSvc --> RuleEng
     RuleEng --> AlertSvc
     AlertSvc --> EvtPub
     EvtPub --> WSCfg
+    EvtPub --> CorePub
 
     PatientSvc --> PatRepo
     RuleSvc --> RuleRepo
     AlertSvc --> AlertRepo
-    TeleSvc --> TeleDao
-    RuleEng --> TeleDao
+    TeleSvc --> TeleRepo
+    RuleEng --> TeleRepo
 
     REST -.token check.-> JwtP
     SecF -.validate.-> JwtP
@@ -185,9 +173,9 @@ flowchart TB
     classDef inbound fill:#fef3e2,stroke:#d80;
     classDef domain fill:#e8f5e9,stroke:#2a7;
     classDef data fill:#fff8dc,stroke:#a80;
-    class REST,WS,Cons,Sim,WH inbound;
-    class PatientSvc,TeleSvc,RuleSvc,AlertSvc,RuleEng,EvtPub,JwtP domain;
-    class PatRepo,RuleRepo,AlertRepo,TeleDao data;
+    class REST,WS,Adm,Tele,Sim,WH inbound;
+    class PatientSvc,AdmSvc,TeleSvc,RuleSvc,AlertSvc,RuleEng,EvtPub,CorePub,JwtP domain;
+    class PatRepo,RuleRepo,AlertRepo,TeleRepo data;
 ```
 
 ---
@@ -264,87 +252,77 @@ sequenceDiagram
 
 ## 6. Telemetry ingestion & rule evaluation
 
-The hot path that runs every few seconds, per patient, per sensor. Devices never talk to the API directly — they publish to SQS, which decouples device cadence from app availability.
+The hot path that runs every few seconds, per patient. Telemetry is **internal** — it never leaves the process on a broker. Today `TelemetrySimulatorService` feeds it; in production an equivalent in-process ingestion path would. Only the resulting alerts go outward (diagram 8).
 
 ```mermaid
 sequenceDiagram
-    participant Device as IoT Sensor<br/>Philips IntelliVue
-    participant SQS as SQS<br/>m9-telemetry-ingest
-    participant Consumer as TelemetryConsumer<br/>(Spring Cloud Stream)
+    participant Src as Telemetry source<br/>Simulator / in-process
+    participant Consumer as TelemetryConsumer<br/>processTelemetryMessage()
     participant TeleSvc as TelemetryReadingService
-    participant DDB as DynamoDB<br/>m9-telemetry-readings
+    participant PG as Postgres<br/>telemetry_readings
     participant Rule as RuleEngineService
     participant AlertSvc as AlertService
-    participant PG as Postgres<br/>alerts
+    participant PGA as Postgres<br/>alerts
     participant Pub as EventPublisherService
 
-    Device->>SQS: publish {sensor_id, patient_id,<br/>metrics, unit_metadata}
-    SQS-->>Consumer: deliver message (long-poll)
+    Src->>Consumer: processTelemetryMessage({sensor_id,<br/>patient_id, metrics})
+    Consumer->>Consumer: fingerprint → skip if duplicate
     Consumer->>TeleSvc: recordReading(reading)
-    TeleSvc->>DDB: PutItem<br/>PK=patient_id · SK=recorded_at
-    DDB-->>TeleSvc: OK
+    TeleSvc->>PG: INSERT telemetry_reading<br/>recordedAt = now(UTC)
+    PG-->>TeleSvc: OK
 
     Consumer->>Rule: evaluate(reading)
-    Rule->>DDB: Query last 10 min<br/>for sustained violations
-    DDB-->>Rule: window of readings
+    Rule->>PG: Query last 10 min<br/>for sustained violations
+    PG-->>Rule: window of readings
 
     alt threshold violated
         Rule->>AlertSvc: createAlert(severity, msg)
-        AlertSvc->>PG: INSERT alert
+        AlertSvc->>PGA: INSERT alert
         AlertSvc->>Pub: publish(alert)
         Pub-->>Pub: WebSocket push (see diagram 8)
-        Pub-->>Pub: SNS publish (see diagram 8)
+        Pub-->>Pub: Core /events/log (see diagram 8)
     else within thresholds
         Rule-->>Consumer: no action
     end
 
-    Consumer->>SQS: delete message (ack)
-
-    Note over Device,SQS: Cadence ≈ 1 Hz per patient<br/>per sensor — DynamoDB chosen for<br/>predictable single-key writes.
+    Note over Src,Consumer: Cadence ≈ 1 Hz per patient —<br/>kept in-process so it never contends<br/>with the Core event bus.
 ```
 
 ---
 
-## 7. Persistence split: Postgres vs DynamoDB
+## 7. Persistence: single Postgres store
 
-The polyglot rationale in one picture. Relational entities with rich queries stay in Postgres; high-write time-series go to DynamoDB.
+All entities — including high-frequency telemetry — live in one **RDS PostgreSQL** instance via JPA/Hibernate. There is no DynamoDB; telemetry readings are a regular JPA entity with an index on `(patient, recordedAt)` that serves the rule-engine lookback.
 
 ```mermaid
 flowchart LR
-    subgraph PG["RDS PostgreSQL — relational, low write rate"]
+    subgraph PG["RDS PostgreSQL — all domain data (JPA / Hibernate)"]
         direction TB
-        P[Patient<br/>id · mrn · name · status<br/>roomNumber · diagnosis]
+        P[Patient<br/>id · externalId · name · status<br/>room · bed]
         R[Rule<br/>id · metric · operator<br/>threshold · duration · severity<br/>enabled]
-        A[Alert<br/>id · patient_id · severity<br/>message · acknowledged<br/>triggered_at]
+        A[Alert<br/>id · patient_id · severity<br/>message · acknowledged<br/>triggered_at UTC]
         U[User / Audit<br/>id · username · role]
+        T[TelemetryReading<br/>telemetry_readings<br/>patient · recordedAt UTC<br/>heart_rate · spo2 · pressure · temperature]
         P ---|1..N| A
         R ---|N..N evaluated against| P
+        P ---|1..N| T
+        A -. triggered by query over .-> T
     end
-
-    subgraph DDB["DynamoDB — high-write time-series"]
-        direction TB
-        T[m9-telemetry-readings<br/>PK patient_id · SK recorded_at<br/>heart_rate · spo2 · pressure<br/>temperature · expires_at TTL]
-    end
-
-    A -. references .-> P
-    A -. triggered by query over .-> T
 
     classDef pg fill:#e0eaff,stroke:#558;
-    classDef dd fill:#fff0d9,stroke:#a70;
-    class P,R,A,U pg;
-    class T dd;
+    class P,R,A,U,T pg;
 ```
 
 **Query patterns at a glance**
 
-| Use case | Store | Operation |
-|---|---|---|
-| List active patients in ICU | Postgres | `SELECT … WHERE status='CRITICAL'` |
-| Show patient profile | Postgres | `findById` |
-| Last 10 min of vitals for rule eval | DynamoDB | `Query(PK=patient_id, SK>=now-10m, Limit=N)` |
-| Telemetry chart on PatientDetail | DynamoDB | `Query(PK=patient_id, SK between t1 and t2)` |
-| List unacknowledged alerts | Postgres | `SELECT … WHERE acknowledged=false` |
-| Old telemetry cleanup | DynamoDB | TTL on `expires_at` (no app code) |
+| Use case | Operation |
+|---|---|
+| List active patients in ICU | `SELECT … WHERE status='CRITICAL'` |
+| Show patient profile | `findById` |
+| Last 10 min of vitals for rule eval | `findByPatientAndRecordedAtAfter(...)` (indexed range) |
+| Telemetry chart on PatientDetail | `findByPatientAndRecordedAtBetween(t1, t2)` |
+| List unacknowledged alerts | `SELECT … WHERE acknowledged=false` |
+| Old telemetry cleanup | Scheduled purge / retention job (no TTL infra) |
 
 ---
 

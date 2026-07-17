@@ -19,9 +19,10 @@ monitoring-service/
 │   │   │   ├── dto/
 │   │   │   │   └── PatientDTO.java                    [Transfer Object]
 │   │   │   ├── consumer/
-│   │   │   │   └── PatientEventConsumer.java          [Consumidor SQS]
+│   │   │   │   ├── AdmissionEventListener.java        [Listener RabbitMQ - Core bus]
+│   │   │   │   └── TelemetryConsumer.java             [Procesa telemetría interna]
 │   │   │   └── config/
-│   │   │       └── AwsSqsConfig.java                  [Configuración AWS]
+│   │   │       └── JacksonConfig.java                 [ObjectMapper compartido]
 │   │   └── resources/
 │   │       ├── application.yml                        [Config del servidor]
 │   │       ├── application-dev.yml                    [Config desarrollo]
@@ -60,7 +61,7 @@ monitoring-service/
                    │
 ┌──────────────────▼──────────────────────┐
 │      Infrastructure Layer               │
-│  (PostgreSQL, AWS SQS, Eventos)         │
+│  (PostgreSQL, RabbitMQ/Core, Eventos)   │
 └─────────────────────────────────────────┘
 ```
 
@@ -93,25 +94,32 @@ PatientRepository (JPA)
 Respuesta HTTP 201 (PatientDTO)
 ```
 
-### 2. Procesamiento de Eventos SQS
+### 2. Procesamiento de Eventos de Admisión (RabbitMQ · Core bus)
 
 ```
-AWS SQS Queue (patient-events-queue)
+Módulo 6 (Internación)
+    │
+    ├─ POST /events/log  (al Core, M10)
     │
     ▼
-Spring Cloud Stream
+Core Event Bus (RabbitMQ · health_grid_exchange)
     │
-    ├─ Binding: patientEventInput
-    │
-    ▼
-PatientEventConsumer
-    │
-    ├─ Procesar evento (PatientDTO)
-    ├─ Aplicar lógica según estado
+    ├─ routing → cola monitoring.requests
     │
     ▼
-Operaciones (alertas, actualizaciones, etc.)
+AdmissionEventListener  (@RabbitListener)
+    │
+    ├─ Parsear sobre externo (CoreEventEnvelope)
+    ├─ Parsear payload interno (string JSON → MonitoreoWebhookRequestDTO)
+    │
+    ▼
+MonitoringAdmissionService
+    │
+    ├─ alta  → crea/reactiva paciente
+    └─ baja  → marca paciente INACTIVE
 ```
+
+> Las colas, eventos y bindings se aprovisionan desde el Core (`/rabbit/queues`, `/events/types`, `/rabbit/bindings`); M9 solo escucha su cola. El webhook REST `POST /webhooks/internacion/*` sigue activo en paralelo durante la transición.
 
 ## 📊 Entidades y Relaciones
 
@@ -150,25 +158,35 @@ Operaciones (alertas, actualizaciones, etc.)
 - Spring Data JPA con métodos especializados
 - Transaccionalidad declarativa con `@Transactional`
 
-## 📡 Integración con AWS SQS
+## 📡 Integración con el Core (M10) vía RabbitMQ
 
-### Configuración
+### Entrada (escuchar)
 ```
-Spring Cloud Stream
+spring-boot-starter-amqp
     │
-    ├─ Binding de entrada: patientEventInput
-    ├─ Destino: patient-events-queue
+    ├─ @RabbitListener → cola monitoring.requests
+    ├─ host: queue.healthgrid.cantero.ar (spring.rabbitmq.*)
+    ├─ requeue-rejected=false → mensaje fallido va a la DLQ
     │
     ▼
-AwsSqsConfig
-    │
-    ├─ Cliente SQS (SDK v2)
-    ├─ Endpoint override (LocalStack en dev)
-    ├─ Credenciales configurables
+RabbitMQ del Core (health_grid_exchange · topic)
+```
+
+### Salida (publicar)
+```
+CoreAuthService  (login a /auth/login, token 24h cacheado)
     │
     ▼
-LocalStack (desarrollo)  o  AWS SQS (producción)
+CoreEventPublisher → POST /events/log
+    ├─ event_type_id 16 → internacion.alerta-emergencia.detectada
+    ├─ event_type_id 17 → internacion.alerta-resuelta.notificada
+    └─ payload como string JSON
+    │
+    ▼
+Core enruta el evento a internacion.requests (M6)
 ```
+
+> No hay clientes de AWS en el código: la mensajería es 100 % RabbitMQ gestionado por el Core. En desarrollo se puede levantar un `rabbitmq:3-management` local (ver `backend/docker-compose.yml`).
 
 ## 🎯 Patrones Implementados
 
@@ -209,11 +227,14 @@ public class PatientService {
 }
 ```
 
-### 5. **Consumer Pattern (Event-Driven)**
+### 5. **Listener Pattern (Event-Driven · RabbitMQ)**
 ```java
-@Bean
-public Consumer<PatientDTO> patientEventInput() {
-    return patientEvent -> processPatientEvent(patientEvent);
+@RabbitListener(queues = "${healthgrid.rabbit.monitoring-queue:monitoring.requests}")
+public void onMessage(String rawMessage) {
+    CoreEventEnvelope envelope = objectMapper.readValue(rawMessage, CoreEventEnvelope.class);
+    MonitoreoWebhookRequestDTO admission =
+        objectMapper.readValue(envelope.getPayload(), MonitoreoWebhookRequestDTO.class);
+    admissionService.handleEvent(admission);
 }
 ```
 
@@ -224,7 +245,7 @@ public Consumer<PatientDTO> patientEventInput() {
 ddl-auto: create-drop          # Reinicia BD cada ejecución
 show-sql: true                 # Muestra SQL
 logging: DEBUG                 # Logs detallados
-endpoint: http://localhost:4566 # LocalStack
+rabbitmq.host: localhost       # RabbitMQ local (docker-compose)
 ```
 
 ### Producción (prod)
@@ -243,9 +264,9 @@ credentials: Variables de entorno
 - Preparado para sharding
 
 ### Mensajería
-- Spring Cloud Stream: Abstracción de broker
-- Fácil migración: SQS → Kafka → RabbitMQ
-- Dead Letter Queue ready
+- RabbitMQ gestionado por el Core (M10) como bus central de eventos
+- Colas/eventos/bindings self-service vía la API del Core
+- Dead Letter Queue por cola (creada por el Core)
 
 ### API
 - Compresión HTTP habilitada

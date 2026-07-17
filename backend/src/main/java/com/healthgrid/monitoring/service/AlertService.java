@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -75,7 +76,7 @@ public class AlertService {
             .severity(AlertSeverity.CRITICAL)
             .message("Intervención médica solicitada manualmente")
             .acknowledged(false)
-            .triggeredAt(LocalDateTime.now())
+            .triggeredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
         Alert savedAlert = alertRepository.save(alert);
@@ -190,7 +191,7 @@ public class AlertService {
 
         alert.setAcknowledged(true);
         alert.setAcknowledgedBy(acknowledgedBy);
-        alert.setAcknowledgedAt(LocalDateTime.now());
+        alert.setAcknowledgedAt(LocalDateTime.now(ZoneOffset.UTC));
         alertRepository.save(alert);
         log.info("Alert acknowledged with ID: {}, by: {}", id, acknowledgedBy);
 
