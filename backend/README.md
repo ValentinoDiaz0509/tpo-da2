@@ -64,7 +64,7 @@ The app starts on port `8080` with context path `/api/v1`.
 
 On first startup, Hibernate (`ddl-auto: update`) creates the schema automatically — no migration step needed.
 
-`DataSeeder` also runs on startup and inserts demo patients, rules, and alerts.
+With the default `local` profile, `DataSeeder` also runs on startup and inserts demo patients and rules. It does not run under the AWS `prod` profile.
 
 ### Useful URLs
 
@@ -115,9 +115,9 @@ All variables have working defaults for local development. Override them in prod
 
 | Variable | Default | Description |
 |---|---|---|
-| `JWT_SECRET` | `healthgrid-monitoring-secret-key-...` | HS512 signing secret |
-| `JWT_EXPIRATION` | `86400000` | Token TTL in milliseconds (24 h) |
-| `JWT_ISSUER` | `Module10-Core` | JWT issuer claim |
+| `MODULE10_CORE_URL` | `http://localhost:8081` | Core base URL for JWKS validation and service-to-service login |
+| `MODULE10_CORE_EMAIL` | `cuenta-servicio-m9@healthgrid.com` | Service account email used by backend integrations |
+| `MODULE10_CORE_PASSWORD` | `m9-secret` | Service account password used by backend integrations |
 | `MODULE6_WEBHOOK_URL` | `http://localhost:8086/webhooks/...` | Emergency alert webhook target |
 
 ---

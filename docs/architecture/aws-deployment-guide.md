@@ -312,8 +312,7 @@ aws ecs register-task-definition --cli-input-json file://task-definition.json
         { "name": "SQS_PATIENT_EVENTS_QUEUE", "value": "patient-events-queue" },
         { "name": "DYNAMODB_TELEMETRY_TABLE", "value": "m9-telemetry-readings" },
         { "name": "MODULE6_WEBHOOK_URL", "value": "https://internacion.healthgrid.com/webhooks/m9-alerts" },
-        { "name": "JWT_ISSUER", "value": "Module10-Core" },
-        { "name": "JWT_EXPIRATION", "value": "86400000" },
+        { "name": "MODULE10_CORE_URL", "value": "https://api.healthcare.cantero.ar" },
         { "name": "MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE", "value": "health,info,metrics,prometheus" }
       ],
       "secrets": [
@@ -328,10 +327,6 @@ aws ecs register-task-definition --cli-input-json file://task-definition.json
         {
           "name": "SPRING_DATASOURCE_PASSWORD",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:<ACCOUNT_ID>:secret:health-grid/m9/db-credentials:spring.datasource.password::"
-        },
-        {
-          "name": "JWT_SECRET",
-          "valueFrom": "arn:aws:secretsmanager:us-east-1:<ACCOUNT_ID>:secret:health-grid/m9/jwt-secret"
         }
       ],
       "healthCheck": {
@@ -521,9 +516,7 @@ The application container needs permissions to interact with AWS services:
 | `MODULE6_WEBHOOK_URL` | Internación module webhook receiver | `https://internacion.healthgrid.com/webhooks/m9-alerts` |
 | `AWS_REGION` | AWS region (used by the SDK v2) | `us-east-1` |
 | `SIMULATOR_ENABLED` | Toggles the in-process telemetry simulator — **must be `false` in prod** | `false` |
-| `JWT_SECRET` | HS512 signing secret (from Secrets Manager) | `••••••` |
-| `JWT_ISSUER` | Expected `iss` claim | `Module10-Core` |
-| `JWT_EXPIRATION` | Token TTL in ms | `86400000` |
+| `MODULE10_CORE_URL` | Core base URL for service login and JWKS validation | `https://api.healthcare.cantero.ar` |
 | `ALLOWED_ORIGINS` | CORS origins for WebSocket/dashboard | `https://dashboard.healthgrid.com` |
 
 ---

@@ -180,7 +180,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                path.startsWith("/v3/api-docs") ||
                path.startsWith("/health") ||
                path.startsWith("/actuator") ||
-               path.startsWith("/auth");
+               path.startsWith("/auth/sso");
     }
 
     private String getPathWithoutContext(HttpServletRequest request) {

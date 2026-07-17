@@ -21,7 +21,7 @@ import java.util.Arrays;
  * Spring Security Configuration for JWT-based authentication.
  * 
  * Configured for stateless JWT authentication.
- * All requests (except auth endpoints) require valid JWT token from Module 10 (Core).
+ * All protected API requests require a valid JWT token from Module 10 (Core).
  */
 @Configuration
 @EnableWebSecurity
@@ -59,7 +59,8 @@ public class SecurityConfig {
                     "/health",
                     "/actuator/**"
                 ).permitAll()
-                .requestMatchers("/auth/**").permitAll()  // Auth endpoints
+                .requestMatchers("/auth/sso").permitAll()
+                .requestMatchers("/auth/me").authenticated()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/ws").permitAll()
                 

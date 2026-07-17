@@ -17,7 +17,6 @@ export interface M9BackendStackProps extends cdk.StackProps {
   taskMemory?: number;
   dbInstanceType?: ec2.InstanceType;
   module6WebhookUrl?: string;
-  jwtIssuer?: string;
   frontendBaseUrl?: string;
 }
 
@@ -34,7 +33,6 @@ export class M9BackendStack extends cdk.Stack {
       taskMemory      = 1024,
       dbInstanceType  = ec2.InstanceType.of(ec2.InstanceClass.T4G, ec2.InstanceSize.MICRO),
       module6WebhookUrl = 'https://internacion.healthgrid.com/webhooks/m9-alerts',
-      jwtIssuer       = 'Module10-Core',
       frontendBaseUrl = 'https://dzp5goz8czibt.cloudfront.net',
     } = props;
 
@@ -96,15 +94,6 @@ export class M9BackendStack extends cdk.Stack {
         secretStringTemplate: JSON.stringify({ username: 'm9admin' }),
         generateStringKey: 'password',
         passwordLength: 24,
-        excludePunctuation: true,
-      },
-    });
-
-    const jwtSecret = new secretsmanager.Secret(this, 'JwtSecret', {
-      secretName: 'm9/jwt-secret',
-      description: 'HS512 signing secret for JWT validation.',
-      generateSecretString: {
-        passwordLength: 64,
         excludePunctuation: true,
       },
     });
@@ -173,7 +162,6 @@ export class M9BackendStack extends cdk.Stack {
       ],
     });
     dbSecret.grantRead(executionRole);
-    jwtSecret.grantRead(executionRole);
 
     // IAM — task role (app runtime: SQS)
     const taskRole = new iam.Role(this, 'TaskRole', {
@@ -222,8 +210,6 @@ export class M9BackendStack extends cdk.Stack {
         MODULE6_WEBHOOK_URL: module6WebhookUrl,
         MODULE6_WEBHOOK_ALERTA_EMERGENCIA_URL: module6WebhookUrl,
         MODULE10_CORE_URL: 'https://api.healthcare.cantero.ar',
-        JWT_ISSUER: jwtIssuer,
-        JWT_EXPIRATION: '86400000',
         APP_FRONTEND_BASE_URL: frontendBaseUrl,
         APP_CORS_ALLOWED_ORIGIN_PATTERNS: 'http://localhost:3000,http://localhost:8080,http://localhost:5173,http://127.0.0.1:5173,https://*.cloudfront.net',
         SPRING_DATASOURCE_USERNAME: 'm9admin',
@@ -233,7 +219,6 @@ export class M9BackendStack extends cdk.Stack {
       },
       secrets: {
         SPRING_DATASOURCE_PASSWORD: ecs.Secret.fromSecretsManager(dbSecret, 'password'),
-        JWT_SECRET: ecs.Secret.fromSecretsManager(jwtSecret),
       },
       portMappings: [{ containerPort: 8080 }],
       healthCheck: {

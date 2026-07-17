@@ -10,7 +10,7 @@ Two-app monorepo for a hospital patient monitoring system:
 - `frontend/` — React 19 + Vite 8 SPA (`appvalen`), JS only (no TypeScript).
 - `docs/` — Project documentation, organised into subfolders:
   - `architecture/` — system design, AWS deployment guide, Mermaid diagram set, telemetry flow. Start here for a new dev.
-  - `guides/` — how-to guides: `DEVELOPMENT_GUIDE.md`, `STARTUP_GUIDE.txt`, `QUICKSTART.md`, `TELEMETRY_INGESTION_GUIDE.md`, `SECURITY_JWT_GUIDE.md`, `GETTING_STARTED_JWT.md`, `FRONTEND_COMMUNICATION_LAYER.md`.
+  - `guides/` — how-to guides: `DEVELOPMENT_GUIDE.md`, `STARTUP_GUIDE.txt`, `QUICKSTART.md`, `TELEMETRY_INGESTION_GUIDE.md`, `FRONTEND_COMMUNICATION_LAYER.md`.
   - `project/` — TPO spec, sprint plan, team, AWS user accounts.
   - `reports/` — historical phase-completion summaries (mostly read-only context).
   - `examples/` — `TELEMETRY_MESSAGE_EXAMPLES.json` (sample SQS payloads).
@@ -69,7 +69,7 @@ The Spanish word for "in-progress" used in this codebase is *internación*; the 
 `WebSocketConfig` registers a SockJS-fallback STOMP endpoint at `/ws` (full path `/api/v1/ws`) with in-memory broker on `/topic`. Frontend subscribes per-patient at `/topic/monitoring/{patientId}` (see `frontend/src/services/websocket.js`).
 
 ### Security model
-Stateless JWT via `security/SecurityConfig`, `JwtAuthenticationFilter`, `JwtTokenProvider`. `/auth/**`, `/swagger-ui/**`, `/v3/api-docs/**`, `/actuator/**` are public; everything else requires a Bearer token. `AuthenticationController` simulates "Module 10 (Core)" as the token issuer — the TODOs in that file note it is meant to be removed once a real Core service issues/validates tokens. JWT secret/expiration/issuer come from `JWT_SECRET`/`JWT_EXPIRATION`/`JWT_ISSUER` env vars (defaults in `application.yml` are dev-only).
+Stateless JWT via `security/SecurityConfig`, `JwtAuthenticationFilter`, `JwtTokenProvider`. `/auth/**`, `/swagger-ui/**`, `/v3/api-docs/**`, `/actuator/**` are public; everything else requires a Bearer token. Tokens are issued by Module 10 (Core); this service validates them through Core's JWKS endpoint (`${MODULE10_CORE_URL}/.well-known/jwks.json`). `AuthenticationController` only exposes `GET /auth/me` for the current authenticated principal.
 
 ### External integration boundary
 This service refers to itself as a module that talks to numbered peers (Module 6, Module 10). `MODULE6_WEBHOOK_URL` env var redirects emergency-alert webhooks. The webhook *receiver* lives at `InternacionWebhookController` for admission events from the patient-admission module.

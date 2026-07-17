@@ -7,7 +7,6 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
-import Divider from '@mui/material/Divider';
 import Avatar from '@mui/material/Avatar';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AlertCircleIcon from '@mui/icons-material/Error';
@@ -151,35 +150,8 @@ const PatientDetail = () => {
       </Paper>
 
       <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
-        {/* Medical profile */}
-        <Grid size={{ xs: 12, md: 5 }}>
-          <Paper
-            elevation={0}
-            sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, height: '100%' }}
-          >
-            <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
-              Perfil Médico
-            </Typography>
-            <Typography variant="overline" color="text.secondary">
-              Resumen de Historia
-            </Typography>
-            <Divider sx={{ mb: 2 }} />
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-              <Avatar sx={{ bgcolor: 'primary.light', width: 40, height: 40 }} />
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block' }}>
-                  MÉDICO A CARGO
-                </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Dr. Asignado
-                </Typography>
-              </Box>
-            </Box>
-          </Paper>
-        </Grid>
-
         {/* Alert history */}
-        <Grid size={{ xs: 12, md: 7 }}>
+        <Grid size={12}>
           <Paper
             elevation={0}
             sx={{ p: 2.5, border: '1px solid', borderColor: 'divider', borderRadius: 2, height: '100%' }}
@@ -187,9 +159,6 @@ const PatientDetail = () => {
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
                 Historial de Alertas
-              </Typography>
-              <Typography variant="caption" color="primary.main" sx={{ cursor: 'pointer' }}>
-                Ver Todo
               </Typography>
             </Box>
 
