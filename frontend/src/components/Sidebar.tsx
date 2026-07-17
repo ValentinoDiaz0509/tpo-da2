@@ -91,6 +91,7 @@ interface SsoTicketResponse {
 
 const fetchSsoTicket = async (token: string): Promise<string> => {
   const response = await fetch(`${CORE_API_URL}/auth/sso-ticket`, {
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -148,8 +149,8 @@ const Sidebar = ({ width }: Props) => {
     try {
       const ticket = await fetchSsoTicket(token);
       window.location.assign(buildSsoUrl(item, ticket));
-    } catch {
-      window.location.assign(item.href);
+    } catch (error) {
+      window.alert((error as Error).message);
     }
   };
 
