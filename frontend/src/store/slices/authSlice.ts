@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 
 export interface UserRole {
+  id?: number;
   name: string;
 }
 
@@ -31,7 +32,7 @@ const initialState: AuthState = {
 interface CoreLoginResponse {
   token: string;
   user: {
-    id: number;
+    id?: number;
     first_name?: string;
     last_name?: string;
     email: string;
@@ -39,32 +40,81 @@ interface CoreLoginResponse {
   };
 }
 
-interface TokenPayload {
+interface CoreUserResponse {
+  id: number;
+  first_name?: string;
+  last_name?: string;
+  email: string;
   roles?: Array<UserRole | string>;
-  permissions?: string[];
+}
+
+interface CoreErrorResponse {
+  error?: string;
+}
+
+interface TokenPayload {
+  user_id?: number | string;
+  sub?: number | string;
 }
 
 const normalizeRoles = (roles?: Array<UserRole | string>): UserRole[] => {
   if (!roles || roles.length === 0) return [];
 
   return roles
-    .map((role) => (typeof role === 'string' ? { name: role } : role))
+    .map((role) => (typeof role === 'string' ? { name: role } : { id: role.id, name: role.name }))
     .filter((role): role is UserRole => Boolean(role?.name));
 };
 
-const getRolesFromToken = (token: string): UserRole[] => {
+const decodeTokenPayload = (token: string): TokenPayload | null => {
   try {
     const encodedPayload = token.split('.')[1];
+    if (!encodedPayload) return null;
+
     const base64Payload = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
     const paddedPayload = base64Payload.padEnd(base64Payload.length + ((4 - base64Payload.length % 4) % 4), '=');
-    const payload = JSON.parse(atob(paddedPayload)) as TokenPayload;
-    const roles = normalizeRoles(payload.roles);
-    if (roles.length > 0) return roles;
-
-    return (payload.permissions ?? []).map((permission) => ({ name: permission }));
+    return JSON.parse(atob(paddedPayload)) as TokenPayload;
   } catch {
-    return [];
+    return null;
   }
+};
+
+export const getUserIdFromToken = (token: string): number | null => {
+  const payload = decodeTokenPayload(token);
+  const rawUserId = payload?.user_id ?? payload?.sub;
+  const userId = Number(rawUserId);
+  return Number.isFinite(userId) && userId > 0 ? userId : null;
+};
+
+const toUser = (data: CoreUserResponse): User => ({
+  id: data.id,
+  first_name: data.first_name ?? '',
+  last_name: data.last_name ?? '',
+  email: data.email,
+  roles: normalizeRoles(data.roles),
+});
+
+export const fetchCoreUserById = async (coreUrl: string, token: string, userId: number): Promise<User> => {
+  const response = await fetch(`${coreUrl}/users/${userId}`, {
+    method: 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Get user failed: ${response.status}`;
+
+    try {
+      const errorBody = (await response.json()) as CoreErrorResponse;
+      errorMessage = errorBody.error ?? errorMessage;
+    } catch {
+      // Keep the HTTP status as the error detail when Core does not return JSON.
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  return toUser((await response.json()) as CoreUserResponse);
 };
 
 export const loginThunk = createAsyncThunk(
@@ -75,7 +125,7 @@ export const loginThunk = createAsyncThunk(
   ) => {
     try {
       if (!email.trim() || !password.trim()) {
-        throw new Error('Email y contraseña son requeridos');
+        throw new Error('Email y contrasena son requeridos');
       }
 
       const coreUrl = import.meta.env.VITE_CORE_API_URL ?? 'http://localhost:8081';
@@ -90,16 +140,13 @@ export const loginThunk = createAsyncThunk(
       }
 
       const data = (await response.json()) as CoreLoginResponse;
-      const roles = normalizeRoles(data.user.roles);
-      const tokenRoles = getRolesFromToken(data.token);
+      const userId = data.user.id ?? getUserIdFromToken(data.token);
 
-      const userData: User = {
-        id: data.user.id,
-        first_name: data.user.first_name ?? '',
-        last_name: data.user.last_name ?? '',
-        email: data.user.email,
-        roles: roles.length > 0 ? roles : tokenRoles.length > 0 ? tokenRoles : [{ name: 'ENFERMERO' }],
-      };
+      if (!userId) {
+        throw new Error('No se pudo obtener el user_id del token');
+      }
+
+      const userData = await fetchCoreUserById(coreUrl, data.token, userId);
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(userData));

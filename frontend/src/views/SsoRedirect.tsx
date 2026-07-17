@@ -2,10 +2,11 @@ import { useEffect } from 'react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
+import { fetchCoreUserById, getUserIdFromToken } from '../store/slices/authSlice';
 
 interface CoreSsoResponse {
   user: {
-    id: number;
+    id?: number;
     first_name: string;
     last_name: string;
     email: string;
@@ -45,13 +46,14 @@ const SsoRedirect = () => {
         }
 
         const data = (await response.json()) as CoreSsoResponse;
-        const user = {
-          id: data.user.id,
-          first_name: data.user.first_name,
-          last_name: data.user.last_name,
-          email: data.user.email,
-          roles: [{ name: 'ENFERMERO' }],
-        };
+        const userId = data.user.id ?? getUserIdFromToken(data.token);
+
+        if (!userId) {
+          window.location.replace('/login');
+          return;
+        }
+
+        const user = await fetchCoreUserById(CORE_API_URL, data.token, userId);
 
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(user));
