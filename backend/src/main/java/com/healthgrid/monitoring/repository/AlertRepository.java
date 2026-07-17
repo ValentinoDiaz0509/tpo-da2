@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -95,7 +96,7 @@ public interface AlertRepository extends JpaRepository<Alert, UUID> {
     default List<Alert> findRecentAlertsForPatient(Patient patient, Integer hours) {
         return findByPatientAndTriggeredAtAfterOrderByTriggeredAtDesc(
             patient,
-            LocalDateTime.now().minusHours(hours)
+            LocalDateTime.now(ZoneOffset.UTC).minusHours(hours)
         );
     }
 

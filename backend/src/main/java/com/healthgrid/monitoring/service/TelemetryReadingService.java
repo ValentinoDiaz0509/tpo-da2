@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -50,7 +51,7 @@ public class TelemetryReadingService {
             .systolicPressure(readingDTO.getSystolicPressure())
             .diastolicPressure(readingDTO.getDiastolicPressure())
             .temperature(readingDTO.getTemperature())
-            .recordedAt(readingDTO.getRecordedAt() != null ? readingDTO.getRecordedAt() : LocalDateTime.now())
+            .recordedAt(readingDTO.getRecordedAt() != null ? readingDTO.getRecordedAt() : LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
         TelemetryReading savedReading = telemetryReadingRepository.save(reading);

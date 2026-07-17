@@ -20,26 +20,22 @@ services:
     networks:
       - monitoring-network
 
-  localstack:
-    image: localstack/localstack:latest
-    container_name: localstack-monitoring
-    environment:
-      SERVICES: sqs,dynamodb
-      DEBUG: 1
-      DATA_DIR: /tmp/localstack/data
-      DOCKER_HOST: unix:///var/run/docker.sock
+  # RabbitMQ local para desarrollo: simula el bus del Core (queue.healthgrid.cantero.ar).
+  # Levantar la app con RABBITMQ_HOST=localhost RABBITMQ_USER=guest RABBITMQ_PASSWORD=guest
+  # y crear a mano la cola monitoring.requests (Management UI: http://localhost:15672).
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq-monitoring
     ports:
-      - "4566:4566"
-      - "4571:4571"
-    volumes:
-      - "${TMPDIR:-/tmp/localstack}:/tmp/localstack"
-      - "/var/run/docker.sock:/var/run/docker.sock"
-      # Auto-runs once LocalStack is ready: creates the DynamoDB telemetry table.
-      - "./localstack-init:/etc/localstack/init/ready.d"
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - monitoring-network
-    depends_on:
-      - postgres
 
   wiremock:
     image: wiremock/wiremock:3.7.0

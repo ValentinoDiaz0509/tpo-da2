@@ -15,18 +15,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
-import software.amazon.awssdk.services.sqs.SqsClient;
-import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
-import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
-import software.amazon.awssdk.services.sqs.model.SqsException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
-import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,16 +25,11 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 @Slf4j
 public class EventPublisherService {
-    
-    // TODO(core): reemplazar publicacion directa a SQS por el adapter/event bus definido por Core.
-    private final Optional<SqsClient> sqsClient;
+
     private final ObjectMapper objectMapper;
     private final PatientRepository patientRepository;
     private final RestTemplate restTemplate;
     private final CoreEventPublisher coreEventPublisher;
-    
-    @Value("${aws.sqs.admission-queue-url:http://localhost:4566/000000000000/admission-events-queue}")
-    private String admissionQueueUrl;
 
     @Value("${healthgrid.module6.webhook.alerta-emergencia.url:http://localhost:8086/webhooks/monitoreo/alerta-emergencia}")
     private String module6WebhookAlertaEmergenciaUrl;
@@ -56,107 +42,81 @@ public class EventPublisherService {
 
     @Value("${healthgrid.module6.webhook.enabled:true}")
     private boolean module6WebhookEnabled;
+
+    // event_type_id en el Core (M10) — internacion.alerta-emergencia.detectada / internacion.alerta-resuelta.notificada
+    @Value("${healthgrid.module10.core.events.alerta-emergencia-id:16}")
+    private int alertaEmergenciaEventId;
+
+    @Value("${healthgrid.module10.core.events.alerta-resuelta-id:17}")
+    private int alertaResueltaEventId;
     
     /**
-     * Publica un evento CRITICAL a Module 6 (Internación) usando REST (Webhook) y Core via SQS.
+     * Publica un evento CRITICAL a Module 6 (Internación): al bus de eventos del Core (M10)
+     * y, como fallback legacy, por webhook REST directo.
      */
     public void publishCriticalAlertEvent(Alert alert, Rule rule) {
+        // PASO 1: Recuperar paciente para obtener ubicación
+        Patient patient = patientRepository.findById(alert.getPatient().getId())
+            .orElseThrow(() -> new RuntimeException("Patient not found"));
+
+        // PASO 2: Construir AdmissionEventDTO con TODO el contexto requerido y validar
+        AdmissionEventDTO event = AdmissionEventDTO.builder()
+            .patientId(alert.getPatient().getId())
+            .alertSeverity(alert.getSeverity().name())
+            .location(patient.getRoom() + "-" + patient.getBed()) // REQUERIDO
+            .triggeredRule(buildRuleDescription(rule)) // REQUERIDO
+            .metricName(rule != null ? rule.getMetricName() : "Manual")
+            .metricValue(extractMetricValueFromAlert(alert))
+            .timestamp(alert.getTriggeredAt())
+            .message(alert.getMessage())
+            .sensorId(extractSensorIdFromAlert(alert))
+            .acknowledgmentRequired(true)
+            .priorityLevel("RED") // Código Rojo
+            .build();
+
+        // PASO 3: VALIDAR que el evento contiene los campos requeridos
+        validateEventPayload(event);
+
+        // PASO 4: Publicar a Module 6 (Internación)
+        if (!module6WebhookEnabled) {
+            log.info("Skipping Module 6 webhook because healthgrid.module6.webhook.enabled=false");
+            return;
+        }
+
         try {
-            // PASO 1: Recuperar paciente para obtener ubicación
-            Patient patient = patientRepository.findById(alert.getPatient().getId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
-            
-            // PASO 2: Construir AdmissionEventDTO con TODO el contexto requerido (Para Módulo 10 - Core vía SQS)
-            AdmissionEventDTO event = AdmissionEventDTO.builder()
-                .patientId(alert.getPatient().getId())
-                .alertSeverity(alert.getSeverity().name())
-                .location(patient.getRoom() + "-" + patient.getBed()) // REQUERIDO
-                .triggeredRule(buildRuleDescription(rule)) // REQUERIDO
-                .metricName(rule != null ? rule.getMetricName() : "Manual")
-                .metricValue(extractMetricValueFromAlert(alert))
+            Long pId = patient.getExternalId() != null ? Long.valueOf(patient.getExternalId()) : 0L;
+
+            String obs = rule != null
+                ? "Alerta generada por métrica: " + rule.getMetricName() + " valor: " + extractMetricValueFromAlert(alert)
+                : alert.getMessage();
+
+            AlertaEmergenciaRequestDTO webhookPayload = AlertaEmergenciaRequestDTO.builder()
+                .pacienteId(pId)
                 .timestamp(alert.getTriggeredAt())
-                .message(alert.getMessage())
-                .sensorId(extractSensorIdFromAlert(alert))
-                .acknowledgmentRequired(true)
-                .priorityLevel("RED") // Código Rojo
+                .observaciones(obs)
                 .build();
-            
-            // PASO 3: Serializar a JSON
-            String eventPayload = objectMapper.writeValueAsString(event);
-            
-            // PASO 4: VALIDAR que el JSON contiene los campos requeridos
-            validateEventPayload(event);
-            
-            // PASO 5: Enviar a SQS con Message Group ID (para FIFO order)
-            if (sqsClient.isPresent()) {
-                SendMessageRequest.Builder requestBuilder = SendMessageRequest.builder()
-                    .queueUrl(admissionQueueUrl)
-                    .messageBody(eventPayload);
 
-                if (admissionQueueUrl.endsWith(".fifo")) {
-                    requestBuilder
-                        .messageGroupId("admission-events")
-                        .messageDeduplicationId(generateDeduplicationId(alert, rule));
-                }
+            // 4.a: Publish to M10 Core Event Bus
+            String m10Payload = objectMapper.writeValueAsString(webhookPayload);
+            coreEventPublisher.publishEvent(alertaEmergenciaEventId, m10Payload);
 
-                SendMessageRequest request = requestBuilder.build();
+            // 4.b: Legacy Webhook
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            headers.set("Authorization", "Bearer " + module6WebhookToken);
+            headers.set("Content-Type", "application/json");
 
-                SendMessageResponse response = sqsClient.get().sendMessage(request);
+            org.springframework.http.HttpEntity<AlertaEmergenciaRequestDTO> httpEntity = new org.springframework.http.HttpEntity<>(webhookPayload, headers);
 
-                log.info("✓ CRITICAL ALERT EVENT PUBLISHED TO CORE VIA SQS - Patient: {}, MessageId: {}",
-                    alert.getPatient().getId(), response.messageId());
-            } else {
-                log.info("Skipping SQS publish because aws.sqs.enabled=false");
-            }
+            ResponseEntity<String> webhookResponse = restTemplate.postForEntity(
+                module6WebhookAlertaEmergenciaUrl,
+                httpEntity,
+                String.class
+            );
 
-            // PASO 6: Enviar Webhook REST a Módulo 6 (Internación)
-            if (!module6WebhookEnabled) {
-                log.info("Skipping Module 6 webhook because healthgrid.module6.webhook.enabled=false");
-                return;
-            }
-
-            try {
-                Long pId = patient.getExternalId() != null ? Long.valueOf(patient.getExternalId()) : 0L;
-                
-                String obs = rule != null 
-                    ? "Alerta generada por métrica: " + rule.getMetricName() + " valor: " + extractMetricValueFromAlert(alert)
-                    : alert.getMessage();
-                    
-                AlertaEmergenciaRequestDTO webhookPayload = AlertaEmergenciaRequestDTO.builder()
-                    .pacienteId(pId)
-                    .timestamp(alert.getTriggeredAt())
-                    .observaciones(obs)
-                    .build();
-
-                // 6.a: Publish to M10 Core Event Bus
-                String m10Payload = objectMapper.writeValueAsString(webhookPayload);
-                coreEventPublisher.publishEvent(16, m10Payload);
-
-                // 6.b: Legacy Webhook
-                org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-                headers.set("Authorization", "Bearer " + module6WebhookToken);
-                headers.set("Content-Type", "application/json");
-                
-                org.springframework.http.HttpEntity<AlertaEmergenciaRequestDTO> httpEntity = new org.springframework.http.HttpEntity<>(webhookPayload, headers);
-
-                ResponseEntity<String> webhookResponse = restTemplate.postForEntity(
-                    module6WebhookAlertaEmergenciaUrl, 
-                    httpEntity, 
-                    String.class
-                );
-                
-                log.info("✓ WEBHOOK ALERT SENT TO MODULE 6 - Status: {}, Patient ID: {}", 
-                    webhookResponse.getStatusCode(), webhookPayload.getPacienteId());
-            } catch (Exception ex) {
-                log.error("Failed to send alert to Module 6", ex);
-            }
-            
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize admission event to JSON", e);
-            throw new RuntimeException("Event serialization failed", e);
-        } catch (SqsException e) {
-            log.error("Failed to publish admission event to SQS", e);
-            throw new RuntimeException("Event publishing failed", e);
+            log.info("✓ WEBHOOK ALERT SENT TO MODULE 6 - Status: {}, Patient ID: {}",
+                webhookResponse.getStatusCode(), webhookPayload.getPacienteId());
+        } catch (Exception ex) {
+            log.error("Failed to send alert to Module 6", ex);
         }
     }
     
@@ -179,12 +139,12 @@ public class EventPublisherService {
                 com.healthgrid.monitoring.dto.AlertaResueltaRequestDTO.builder()
                     .pacienteId(pId)
                     .motivoResolucion(motivoResolucion != null ? motivoResolucion : "Alerta resuelta por personal médico: " + alert.getAcknowledgedBy())
-                    .timestamp(java.time.LocalDateTime.now())
+                    .timestamp(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC))
                     .build();
 
             // M10 Core Event Bus implementation
             String m10Payload = objectMapper.writeValueAsString(webhookPayload);
-            coreEventPublisher.publishEvent(17, m10Payload);
+            coreEventPublisher.publishEvent(alertaResueltaEventId, m10Payload);
 
             // Legacy Webhook implementation
             org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
@@ -273,27 +233,5 @@ public class EventPublisherService {
         }
         
         log.debug("✓ Admission event payload validation passed");
-    }
-    
-    /**
-     * Genera un ID único para deduplicación FIFO en SQS.
-     */
-    private String generateDeduplicationId(Alert alert, Rule rule) {
-        String ruleId = rule != null ? String.valueOf(rule.getId()) : "manual";
-        return sha256Hex(
-            alert.getPatient().getId() + "|" +
-            ruleId + "|" + 
-            alert.getTriggeredAt().toString()
-        );
-    }
-
-    private String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
-        }
     }
 }

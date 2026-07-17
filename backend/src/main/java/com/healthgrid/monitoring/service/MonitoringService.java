@@ -26,6 +26,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -217,7 +218,7 @@ public class MonitoringService {
             .status(status)
             .latestMetrics(latestMetrics)
             .activeAlerts(alertSummaries)
-            .lastUpdate(LocalDateTime.now())
+            .lastUpdate(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
         validateMonitoringDTO(dto);
@@ -262,7 +263,7 @@ public class MonitoringService {
             .value(value)
             .unit(unit)
             .status(status)
-            .timestamp(LocalDateTime.now())
+            .timestamp(LocalDateTime.now(ZoneOffset.UTC))
             .ruleThreshold(warningThreshold)
             .build();
     }
