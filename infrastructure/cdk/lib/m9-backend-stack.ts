@@ -110,6 +110,13 @@ export class M9BackendStack extends cdk.Stack {
       this, 'RabbitSecret', 'm9/rabbitmq-credentials',
     );
 
+    // M10 Core REST API login credentials (email/password for POST /auth/login),
+    // separate from the RabbitMQ AMQP credentials above. Created out-of-band via
+    // `aws secretsmanager create-secret --name m9/core-credentials`, not by CDK.
+    const coreSecret = secretsmanager.Secret.fromSecretNameV2(
+      this, 'CoreSecret', 'm9/core-credentials',
+    );
+
     // -------------------------------------------------------------------------
     // RDS PostgreSQL (patients, rules, alerts)
     // -------------------------------------------------------------------------
@@ -178,6 +185,7 @@ export class M9BackendStack extends cdk.Stack {
     });
     dbSecret.grantRead(executionRole);
     rabbitSecret.grantRead(executionRole);
+    coreSecret.grantRead(executionRole);
 
     // IAM — task role (app runtime: SQS)
     const taskRole = new iam.Role(this, 'TaskRole', {
@@ -226,6 +234,7 @@ export class M9BackendStack extends cdk.Stack {
         MODULE6_WEBHOOK_URL: module6WebhookUrl,
         MODULE6_WEBHOOK_ALERTA_EMERGENCIA_URL: module6WebhookUrl,
         MODULE10_CORE_URL: 'https://api.healthcare.cantero.ar',
+        MODULE1_HCE_URL: 'https://healthgrid-hce-backend.onrender.com',
         APP_FRONTEND_BASE_URL: frontendBaseUrl,
         APP_CORS_ALLOWED_ORIGIN_PATTERNS: 'http://localhost:3000,http://localhost:8080,http://localhost:5173,http://127.0.0.1:5173,https://*.cloudfront.net',
         SPRING_DATASOURCE_USERNAME: 'm9admin',
@@ -238,6 +247,8 @@ export class M9BackendStack extends cdk.Stack {
         RABBITMQ_HOST: ecs.Secret.fromSecretsManager(rabbitSecret, 'host'),
         RABBITMQ_USER: ecs.Secret.fromSecretsManager(rabbitSecret, 'username'),
         RABBITMQ_PASSWORD: ecs.Secret.fromSecretsManager(rabbitSecret, 'password'),
+        MODULE10_CORE_EMAIL: ecs.Secret.fromSecretsManager(coreSecret, 'email'),
+        MODULE10_CORE_PASSWORD: ecs.Secret.fromSecretsManager(coreSecret, 'password'),
       },
       portMappings: [{ containerPort: 8080 }],
       healthCheck: {

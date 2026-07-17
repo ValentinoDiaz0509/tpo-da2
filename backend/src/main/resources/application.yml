@@ -45,6 +45,10 @@ healthgrid:
     # Consumo del bus de eventos del Core (M10). El listener escucha esta cola en RabbitMQ.
     enabled: ${HEALTHGRID_RABBIT_ENABLED:true}
     monitoring-queue: ${HEALTHGRID_RABBIT_MONITORING_QUEUE:monitoring.requests}
+  module1:
+    hce:
+      url: ${MODULE1_HCE_URL:http://localhost:8082}
+      enabled: ${MODULE1_HCE_ENABLED:true}
   module6:
     webhook:
       url: ${MODULE6_WEBHOOK_URL:http://localhost:8086/webhooks/monitoreo/alerta-emergencia}
