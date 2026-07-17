@@ -7,6 +7,7 @@ import AuthenticatedLayout from './components/AuthenticatedLayout';
 import PatientDetail from './views/PatientDetail';
 import Monitoring from './views/Monitoring';
 import Login from './views/Login';
+import SsoRedirect from './views/SsoRedirect';
 
 function App() {
   const dispatch = useAppDispatch();
@@ -18,6 +19,7 @@ function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/auth/sso" element={<SsoRedirect />} />
         <Route path="/login" element={<Login />} />
 
         <Route

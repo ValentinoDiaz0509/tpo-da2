@@ -33,6 +33,9 @@ public class SsoController {
     @Value("${healthgrid.module10.core.url:http://localhost:8081}")
     private String coreUrl;
 
+    @Value("${app.frontend.base-url:}")
+    private String frontendBaseUrl;
+
     @GetMapping("/sso")
     @Operation(summary = "Callback para SSO que recibe y canjea el ticket por un JWT")
     public void ssoCallback(
@@ -72,12 +75,7 @@ public class SsoController {
                     response.addCookie(sessionCookie);
                     response.setHeader("Set-Cookie", "session=" + token + "; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400");
                     
-                    // Validar redirect para evitar open-redirect
-                    if (redirect.startsWith("/") && !redirect.startsWith("//")) {
-                        response.sendRedirect(redirect);
-                    } else {
-                        response.sendRedirect("/");
-                    }
+                    response.sendRedirect(resolveRedirectTarget(redirect, "/"));
                     return;
                 }
             }
@@ -87,6 +85,22 @@ public class SsoController {
         }
         
         // Si falla, redirigir al login genérico (del frontend o fallback)
-        response.sendRedirect("/login");
+        response.sendRedirect(resolveRedirectTarget("/login", "/login"));
+    }
+
+    private String resolveRedirectTarget(String redirect, String fallbackPath) {
+        String safePath = isSafeRelativeRedirect(redirect) ? redirect : fallbackPath;
+        if (frontendBaseUrl == null || frontendBaseUrl.isBlank()) {
+            return safePath;
+        }
+
+        String normalizedFrontendUrl = frontendBaseUrl.endsWith("/")
+            ? frontendBaseUrl.substring(0, frontendBaseUrl.length() - 1)
+            : frontendBaseUrl;
+        return normalizedFrontendUrl + safePath;
+    }
+
+    private boolean isSafeRelativeRedirect(String redirect) {
+        return redirect != null && redirect.startsWith("/") && !redirect.startsWith("//");
     }
 }
