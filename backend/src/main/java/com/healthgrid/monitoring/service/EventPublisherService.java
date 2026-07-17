@@ -2,22 +2,19 @@ package com.healthgrid.monitoring.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.healthgrid.monitoring.dto.AdmissionEventDTO;
 import com.healthgrid.monitoring.dto.AlertaEmergenciaRequestDTO;
+import com.healthgrid.monitoring.dto.AlertaResueltaRequestDTO;
 import com.healthgrid.monitoring.model.Alert;
 import com.healthgrid.monitoring.model.Patient;
 import com.healthgrid.monitoring.model.Rule;
 import com.healthgrid.monitoring.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -119,19 +116,42 @@ public class EventPublisherService {
             log.error("Failed to send alert to Module 6", ex);
         }
     }
-    
+
     /**
-     * Publica un evento de alerta resuelta a Module 6 (Internación).
+     * Publishes a resolved-alert event to M6 through Core, and optionally through the legacy REST webhook.
      */
     public void publishAlertResolvedEvent(Alert alert, String motivoResolucion) {
+        try {
+            Patient patient = patientRepository.findById(alert.getPatient().getId())
+                .orElseThrow(() -> new RuntimeException("Patient not found"));
+            Long pacienteId = getCorePatientId(patient);
+            if (pacienteId == null) return;
+
+            AlertaResueltaRequestDTO payload = AlertaResueltaRequestDTO.builder()
+                .pacienteId(pacienteId)
+                .motivoResolucion(motivoResolucion != null
+                    ? motivoResolucion
+                    : "Alerta resuelta por personal médico: " + alert.getAcknowledgedBy())
+                .timestamp(java.time.LocalDateTime.now())
+                .build();
+
+            coreEventPublisher.publishEvent(ALERTA_RESUELTA_EVENT_TYPE_ID, objectMapper.writeValueAsString(payload));
+            sendLegacyResolvedWebhook(payload);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize Module 6 resolved-alert event", e);
+        }
+    }
+
+    private void sendLegacyEmergencyWebhook(AlertaEmergenciaRequestDTO payload) {
         if (!module6WebhookEnabled) {
-            log.info("Skipping resolved alert webhook because healthgrid.module6.webhook.enabled=false");
+            log.info("Skipping Module 6 legacy emergency webhook because healthgrid.module6.webhook.enabled=false");
             return;
         }
 
         try {
-            Patient patient = patientRepository.findById(alert.getPatient().getId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+            org.springframework.http.HttpHeaders headers = buildLegacyHeaders();
+            org.springframework.http.HttpEntity<AlertaEmergenciaRequestDTO> httpEntity =
+                new org.springframework.http.HttpEntity<>(payload, headers);
 
             Long pId = patient.getExternalId() != null ? Long.valueOf(patient.getExternalId()) : 0L;
             
@@ -146,51 +166,53 @@ public class EventPublisherService {
             String m10Payload = objectMapper.writeValueAsString(webhookPayload);
             coreEventPublisher.publishEvent(alertaResueltaEventId, m10Payload);
 
-            // Legacy Webhook implementation
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            headers.set("Authorization", "Bearer " + module6WebhookToken);
-            headers.set("Content-Type", "application/json");
-            
-            org.springframework.http.HttpEntity<com.healthgrid.monitoring.dto.AlertaResueltaRequestDTO> httpEntity = 
-                new org.springframework.http.HttpEntity<>(webhookPayload, headers);
+        try {
+            org.springframework.http.HttpHeaders headers = buildLegacyHeaders();
+            org.springframework.http.HttpEntity<AlertaResueltaRequestDTO> httpEntity =
+                new org.springframework.http.HttpEntity<>(payload, headers);
 
             ResponseEntity<String> webhookResponse = restTemplate.postForEntity(
-                module6WebhookAlertaResueltaUrl, 
-                httpEntity, 
+                module6WebhookAlertaResueltaUrl,
+                httpEntity,
                 String.class
             );
-            
-            log.info("✓ WEBHOOK ALERTA RESUELTA SENT TO MODULE 6 - Status: {}, Patient ID: {}", 
-                webhookResponse.getStatusCode(), webhookPayload.getPacienteId());
+
+            log.info("WEBHOOK ALERTA RESUELTA SENT TO MODULE 6 - Status: {}, Patient ID: {}",
+                webhookResponse.getStatusCode(), payload.getPacienteId());
         } catch (Exception ex) {
-            log.error("Failed to send alerta resuelta to Module 6", ex);
+            log.error("Failed to send legacy resolved-alert webhook to Module 6", ex);
         }
     }
-    
-    /**
-     * Construye una descripción legible de la regla para Module 6.
-     * Ejemplo: "heart_rate > 120.0 for 300 seconds"
-     */
-    private String buildRuleDescription(Rule rule) {
-        if (rule == null) {
-            return "Manual Emergency Intervention";
-        }
-        return String.format("%s %s %.1f for %d seconds",
-            rule.getMetricName(),
-            rule.getOperator(),
-            rule.getThreshold(),
-            rule.getDurationSeconds() != null ? rule.getDurationSeconds() : 0);
+
+    private org.springframework.http.HttpHeaders buildLegacyHeaders() {
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.set("Authorization", "Bearer " + module6WebhookToken);
+        headers.set("Content-Type", "application/json");
+        return headers;
     }
-    
+
+    private Long getCorePatientId(Patient patient) {
+        String externalId = patient.getExternalId();
+        if (externalId == null || externalId.isBlank()) {
+            log.warn("Skipping Module 6 event for patient {} because externalId/paciente_id is missing", patient.getId());
+            return null;
+        }
+
+        try {
+            return Long.valueOf(externalId);
+        } catch (NumberFormatException e) {
+            log.warn("Skipping Module 6 event for patient {} because externalId '{}' is not numeric", patient.getId(), externalId);
+            return null;
+        }
+    }
+
     /**
-     * Extrae el valor numérico de la métrica desde el mensaje de alerta.
-     * Parsea: "Alert: heart_rate value (135.00) triggered..."
+     * Extracts the metric value from alert messages like: "Alert: heart_rate value (135.00) triggered...".
      */
     private Double extractMetricValueFromAlert(Alert alert) {
-        // Patrón: "Alert: metric_name value (XXX.XX)"
         Pattern pattern = Pattern.compile("value \\(([\\d.]+)\\)");
         Matcher matcher = pattern.matcher(alert.getMessage());
-        
+
         if (matcher.find()) {
             return Double.parseDouble(matcher.group(1));
         }

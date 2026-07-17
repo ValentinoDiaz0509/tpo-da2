@@ -140,7 +140,7 @@ Build and test locally:
 docker build -t m9-monitoring ./backend
 docker run -p 8080:8080 \
     -e SPRING_PROFILES_ACTIVE=prod \
-    -e SIMULATOR_ENABLED=false \
+    -e SIMULATOR_ENABLED=true \
     m9-monitoring
 ```
 
@@ -306,7 +306,7 @@ aws ecs register-task-definition --cli-input-json file://task-definition.json
         { "name": "SPRING_PROFILES_ACTIVE", "value": "prod" },
         { "name": "SERVER_PORT", "value": "8080" },
         { "name": "AWS_REGION", "value": "us-east-1" },
-        { "name": "SIMULATOR_ENABLED", "value": "false" },
+        { "name": "SIMULATOR_ENABLED", "value": "true" },
         { "name": "SNS_TOPIC_ARN", "value": "arn:aws:sns:us-east-1:<ACCOUNT_ID>:monitoring-events" },
         { "name": "SQS_TELEMETRY_QUEUE", "value": "m9-telemetry-ingest" },
         { "name": "SQS_PATIENT_EVENTS_QUEUE", "value": "patient-events-queue" },
@@ -515,7 +515,7 @@ The application container needs permissions to interact with AWS services:
 | `SQS_PATIENT_EVENTS_QUEUE` | Queue name for patient admission events | `patient-events-queue` |
 | `MODULE6_WEBHOOK_URL` | Internación module webhook receiver | `https://internacion.healthgrid.com/webhooks/m9-alerts` |
 | `AWS_REGION` | AWS region (used by the SDK v2) | `us-east-1` |
-| `SIMULATOR_ENABLED` | Toggles the in-process telemetry simulator — **must be `false` in prod** | `false` |
+| `SIMULATOR_ENABLED` | Toggles the in-process telemetry simulator for demo telemetry | `true` |
 | `MODULE10_CORE_URL` | Core base URL for service login and JWKS validation | `https://api.healthcare.cantero.ar` |
 | `ALLOWED_ORIGINS` | CORS origins for WebSocket/dashboard | `https://dashboard.healthgrid.com` |
 
