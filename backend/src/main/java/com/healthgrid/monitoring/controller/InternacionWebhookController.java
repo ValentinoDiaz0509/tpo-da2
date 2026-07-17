@@ -28,7 +28,7 @@ public class InternacionWebhookController {
             return ResponseEntity.badRequest().body(new MonitoreoWebhookResponseDTO("El paciente_id es requerido"));
         }
 
-        admissionService.alta(request.getPacienteId());
+        admissionService.alta(request.getPacienteId(), request.getCamaId());
 
         return ResponseEntity.ok(MonitoreoWebhookResponseDTO.builder()
                 .mensaje("Monitoreo del paciente " + request.getPacienteId() + " iniciado")
@@ -44,7 +44,7 @@ public class InternacionWebhookController {
             return ResponseEntity.badRequest().body(new MonitoreoWebhookResponseDTO("El paciente_id es requerido"));
         }
 
-        admissionService.baja(request.getPacienteId());
+        admissionService.baja(request.getPacienteId(), request.getCamaId());
 
         return ResponseEntity.ok(MonitoreoWebhookResponseDTO.builder()
                 .mensaje("Monitoreo del paciente " + request.getPacienteId() + " dado de baja")
